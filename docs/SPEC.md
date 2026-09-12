@@ -155,7 +155,7 @@ No timed reload is permitted during login or an account challenge. There is no c
 - Cancel if the user switches feeds, navigates away, opens a modal, or the app loses the gesture before release.
 - Do not trigger on login screens, profiles, search results, individual posts, messages, or other non-home views.
 - If a protected activity or unsaved draft is active, show a brief paused explanation instead of reloading.
-- Ordinary mouse-wheel scrolling must not accidentally refresh. Toolbar and keyboard refresh remain available for devices without a suitable gesture.
+- Mouse wheels support an intentional overscroll burst that begins at the top: normalize coarse deltas to 16 points per line, arm at the same 70-point threshold, and release after 350 ms without input (observed by the 250 ms native timer). Show `Stop scrolling to refresh` when armed. A burst starting below the top stays rejected until a pause; short bursts, reversal, horizontal motion, and momentum must not refresh. Recheck the renderer's top boundary and protected activity immediately before reload. Toolbar and keyboard refresh remain available.
 
 ### Implementation approach
 

@@ -11,6 +11,7 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
     @Published private(set) var autoRefresh: Bool
     @Published private(set) var pullDistance: Double = 0
     @Published private(set) var pullArmed = false
+    @Published private(set) var pullUsesWheel = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var lastRefresh: Date?
     let webView: WKWebView
@@ -107,6 +108,7 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
     }
 
     func shutdown() {
+        cancelPull()
         timer?.invalidate()
         if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
         observers.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
@@ -137,7 +139,7 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         webView.goBack()
     }
 
-    func refresh(manual: Bool = true, requiresAutomatic: Bool = false) {
+    func refresh(manual: Bool = true, requiresAutomatic: Bool = false, requiresTop: Bool = false) {
         guard !schedule.loading, !checkingRefresh else { return }
         checkingRefresh = true
         // Consult the renderer immediately before reload, rather than trusting a
@@ -157,6 +159,7 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
             if manual {
                 guard self.confirmDiscardIfNeeded() else { return }
             } else {
+                guard !requiresTop || self.page.atTop else { return }
                 guard !requiresAutomatic || (self.autoRefresh && !self.page.scrolling && !self.pull.tracking) else { return }
                 let retrying = self.schedule.retryAt != nil
                 guard self.foregroundAvailable, !self.page.protected,
@@ -229,6 +232,9 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
             fail("The page did not become ready. Try Reload.", manual: true)
         }
         updateEligibility()
+        let wheelRefresh = pull.finishWheelIfIdle(now: now, atTop: page.atTop, eligible: pullEligible)
+        updatePullIndicator()
+        if wheelRefresh { refresh(manual: false, requiresTop: true) }
         let mayRetry = foregroundAvailable && !page.protected &&
             (NavigationPolicy.isHome(webView.url) || fixtureURL != nil)
         if schedule.isDue(now: now, mayRetry: mayRetry) { refresh(manual: false, requiresAutomatic: true) }
@@ -259,9 +265,10 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         pull.cancel()
         if pullDistance != 0 { pullDistance = 0 }
         if pullArmed { pullArmed = false }
+        if pullUsesWheel { pullUsesWheel = false }
     }
 
-    private func handleScroll(_ event: NSEvent) {
+    func handleScroll(_ event: NSEvent) {
         guard event.window === mainWindow else { cancelPull(); return }
         let point = webView.convert(event.locationInWindow, from: nil)
         guard webView.bounds.contains(point) else { cancelPull(); return }
@@ -272,12 +279,28 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         else if event.phase.contains(.ended) { phase = .ended }
         else if event.phase.contains(.began) { phase = .began }
         else if event.phase.contains(.changed) { phase = .changed }
+        else if !event.phase.isEmpty { phase = .cancelled }
         else { phase = .unphased }
-        let shouldRefresh = pull.handle(phase: phase, dx: Double(event.scrollingDeltaX),
-            dy: Double(event.scrollingDeltaY), atTop: page.atTop, eligible: pullEligible)
+        // AppKit reports coarse wheels in lines and precise devices in points.
+        // Normalize lines to a 16-point row; preserve the system's scroll direction.
+        let scale = event.hasPreciseScrollingDeltas ? 1.0 : 16.0
+        let dx = Double(event.scrollingDeltaX) * scale
+        let dy = Double(event.scrollingDeltaY) * scale
+        var shouldRefresh = false
+        if phase == .unphased {
+            pull.handleWheel(dx: dx, dy: dy, now: now, atTop: page.atTop, eligible: pullEligible)
+        } else {
+            shouldRefresh = pull.handle(phase: phase, dx: dx, dy: dy,
+                atTop: page.atTop, eligible: pullEligible)
+        }
+        updatePullIndicator()
+        if shouldRefresh { refresh(manual: false, requiresTop: true) }
+    }
+
+    private func updatePullIndicator() {
         pullDistance = min(pull.distance, 100)
         pullArmed = pull.armed
-        if shouldRefresh { refresh(manual: false) }
+        pullUsesWheel = pull.usesWheel
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {

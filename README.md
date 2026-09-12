@@ -2,7 +2,7 @@
 
 A personal, unofficial desktop window for X, built with Swift, SwiftUI, AppKit, and WebKit. It displays the real **For you** and **Following** feeds without paid API access or a backend.
 
-Status: **working local build**. All 32 automated tests pass. Both signed-in feeds, login persistence, manual reloads, the automatic timer, and native Back have been checked live. Pull-to-refresh was confirmed on the user's trackpad. Extended release acceptance is still incomplete. See [verification](docs/VERIFICATION.md) and the [full specification](docs/SPEC.md).
+Status: **working local build**. All 42 automated tests pass, including native wheel-refresh integration checks. Both signed-in feeds, login persistence, manual reloads, the automatic timer, and native Back have been checked live. Pull-to-refresh was confirmed on the user's trackpad; version 0.1.3 also supports mouse wheels, with physical MX Ergo acceptance still pending. Extended release acceptance is still incomplete. See [verification](docs/VERIFICATION.md) and the [full specification](docs/SPEC.md).
 
 ## Build and run
 
@@ -27,10 +27,12 @@ Navigation and refresh controls share one compact native title bar. A thin botto
 | Change feed | X's own For you / Following tabs |
 | Automatic refresh | Every 60 seconds after the preceding eligible feed load |
 | Refresh now | Toolbar refresh or `Command-R` |
-| Pull-to-refresh | Pull down from the top of the timeline, cross the threshold, and release |
+| Pull-to-refresh | Trackpad: pull down from the top, cross the threshold, and release. Mouse wheel: at the top, scroll farther toward the top until prompted, then stop. |
 | Pause or resume | Toolbar pause/play or `Command-P` |
 | Home | Toolbar home or `Command-1` |
 | Back | Toolbar back, trackpad back gesture, or `Command-[` |
+
+For a mouse wheel, first reach the top and pause, then scroll toward the top again. The indicator changes to **Stop scrolling to refresh** once armed. A pause of roughly half a second releases the pull. Short bursts, reversing direction, horizontal scrolling, and momentum do not refresh; scrolling up from below the top must finish before a new pull can start. Both coarse wheel steps and precise smooth-wheel input are supported.
 
 Manual refresh and pull-to-refresh work while the automatic timer is paused. They do not turn the timer back on. New refresh triggers are coalesced while a reload is in flight.
 
@@ -88,4 +90,4 @@ Quit the existing app first. Fixture mode is compiled out of release builds and 
 - `scripts/build-app.sh`: local application packaging and signature verification.
 - `docs/SPEC.md`: original product and acceptance specification.
 
-No commit, push, public distribution, or paid enrollment is part of this implementation.
+No commit, push, public distribution, or paid enrollment is part of this implementation. Local installed-app updates are recorded in the verification report.

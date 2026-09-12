@@ -141,7 +141,7 @@ private struct ContentView: View {
             ZStack(alignment: .top) {
                 WebViewHost(model: model)
                 if model.pullDistance > 0 {
-                    Label(model.pullArmed ? "Release to refresh" : "Pull to refresh", systemImage: "arrow.down")
+                    Label(model.pullArmed ? (model.pullUsesWheel ? "Stop scrolling to refresh" : "Release to refresh") : "Pull to refresh", systemImage: "arrow.down")
                         .font(.caption).padding(10).background(.regularMaterial, in: Capsule())
                         .padding(.top, min(model.pullDistance / 3, 24))
                         .allowsHitTesting(false)

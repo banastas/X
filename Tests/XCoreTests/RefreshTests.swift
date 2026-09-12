@@ -93,11 +93,69 @@ final class PullTests: XCTestCase {
         p.handle(phase: .changed, dy: 100, atTop: true, eligible: true)
         XCTAssertFalse(p.handle(phase: .ended, atTop: true, eligible: true))
     }
-    func testMomentumAndMouseWheelNeverArm() {
-        for phase: PullGesture.Phase in [.momentum, .unphased] {
-            var p = PullGesture(); p.handle(phase: phase, dy: 300, atTop: true, eligible: true)
-            XCTAssertFalse(p.handle(phase: .ended, atTop: true, eligible: true))
+    func testMomentumNeverArms() {
+        var p = PullGesture(); p.handle(phase: .momentum, dy: 300, atTop: true, eligible: true)
+        XCTAssertFalse(p.handle(phase: .ended, atTop: true, eligible: true))
+    }
+    func testWheelRefreshesOnceAfterPause() {
+        var p = PullGesture()
+        for time in [0.0, 0.1, 0.2] {
+            p.handleWheel(dy: 32, now: time, atTop: true, eligible: true)
         }
+        XCTAssertTrue(p.armed)
+        XCTAssertFalse(p.finishWheelIfIdle(now: 0.5, atTop: true, eligible: true))
+        XCTAssertTrue(p.finishWheelIfIdle(now: 0.6, atTop: true, eligible: true))
+        XCTAssertFalse(p.finishWheelIfIdle(now: 1, atTop: true, eligible: true))
+        XCTAssertEqual(p.distance, 0)
+    }
+    func testWheelReachingTopCannotArmUntilANewBurst() {
+        var p = PullGesture()
+        p.handleWheel(dy: 32, now: 0, atTop: false, eligible: true)
+        p.handleWheel(dy: 100, now: 0.1, atTop: true, eligible: true)
+        XCTAssertFalse(p.armed)
+        XCTAssertFalse(p.finishWheelIfIdle(now: 0.5, atTop: true, eligible: true))
+        p.handleWheel(dy: 100, now: 0.6, atTop: true, eligible: true)
+        XCTAssertTrue(p.finishWheelIfIdle(now: 1, atTop: true, eligible: true))
+    }
+    func testWheelShortBurstsDoNotAccumulate() {
+        var p = PullGesture()
+        p.handleWheel(dy: 40, now: 0, atTop: true, eligible: true)
+        // Even if the UI timer was delayed, a new burst cannot inherit old distance.
+        p.handleWheel(dy: 40, now: 1, atTop: true, eligible: true)
+        XCTAssertEqual(p.distance, 40)
+        XCTAssertFalse(p.finishWheelIfIdle(now: 1.4, atTop: true, eligible: true))
+    }
+    func testWheelReversalAndHorizontalMovementRejectRestOfBurst() {
+        for (dx, dy) in [(0.0, -1.0), (100.0, 10.0)] {
+            var p = PullGesture()
+            p.handleWheel(dy: 100, now: 0, atTop: true, eligible: true)
+            p.handleWheel(dx: dx, dy: dy, now: 0.1, atTop: true, eligible: true)
+            p.handleWheel(dy: 100, now: 0.2, atTop: true, eligible: true)
+            XCTAssertFalse(p.finishWheelIfIdle(now: 0.6, atTop: true, eligible: true))
+        }
+    }
+    func testWheelProtectionAndLeavingTopCancel() {
+        for (atTop, eligible) in [(true, false), (false, true)] {
+            var p = PullGesture()
+            p.handleWheel(dy: 100, now: 0, atTop: true, eligible: true)
+            XCTAssertFalse(p.finishWheelIfIdle(now: 0.4, atTop: atTop, eligible: eligible))
+            XCTAssertFalse(p.tracking)
+        }
+    }
+    func testWheelBlockedAtStartCannotArmMidBurst() {
+        var p = PullGesture()
+        p.handleWheel(dy: 100, now: 0, atTop: true, eligible: false)
+        p.handleWheel(dy: 100, now: 0.1, atTop: true, eligible: true)
+        XCTAssertFalse(p.finishWheelIfIdle(now: 0.5, atTop: true, eligible: true))
+    }
+    func testMomentumAndCancellationDiscardPendingWheelRelease() {
+        var p = PullGesture()
+        p.handleWheel(dy: 100, now: 0, atTop: true, eligible: true)
+        p.handle(phase: .momentum, dy: 300, atTop: true, eligible: true)
+        XCTAssertFalse(p.finishWheelIfIdle(now: 1, atTop: true, eligible: true))
+        p.handleWheel(dy: 100, now: 2, atTop: true, eligible: true)
+        p.cancel()
+        XCTAssertFalse(p.finishWheelIfIdle(now: 3, atTop: true, eligible: true))
     }
     func testProtectedActivityCancelsArmedGesture() {
         var p = PullGesture(); p.handle(phase: .began, dy: 100, atTop: true, eligible: true)

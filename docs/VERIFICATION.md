@@ -1,6 +1,18 @@
-# Verification: X 0.1.2
+# Verification: X 0.1.3
 
 Date: September 12, 2026. Platform: Apple Silicon, macOS 26.6.2, Xcode 26.6, Swift 6.3.3. Deployment target: macOS 14.
+
+## Version 0.1.3 mouse-wheel refresh
+
+The previous native handler deliberately cancelled unphased scroll events, so the Logitech MX Ergo wheel could scroll but could not pull to refresh. The app now recognizes a wheel burst that starts at the top, converts coarse line deltas to points following [AppKit’s documented delta units](https://developer.apple.com/documentation/appkit/nsevent/scrollingdeltay), and releases after 350 ms of wheel inactivity, checked by the existing 250 ms timer. The armed indicator reads `Stop scrolling to refresh`. Trackpad release behavior remains supported. Scrolling from below the top, short separate bursts, direction reversal, horizontal movement, momentum, cancellation, and protected activity do not trigger a wheel refresh. Pull reloads additionally verify the renderer's current top boundary immediately before reloading.
+
+At 10:01 Pacific, `swift test` passed all 42 tests with zero failures in 20.1 seconds. Seven new deterministic tests cover wheel recognition and cancellation. Three new integration tests deliver native event inputs directly to the production handler with real WebKit fixtures: coarse and precise deltas reload exactly once after stopping, Following selection and the paused automatic timer survive, cancellation/momentum do not reload, and scrolling away or creating a draft before release blocks refresh. These tests do not post system events or use the authenticated account.
+
+`scripts/build-app.sh` passed the release build with warnings treated as errors, plist validation, and signature verification. Version 0.1.3 (4) was copied to `/Applications/X.app`; its executable matches `dist/X.app`, and its installed signature verifies. The previous installed version was backed up at `.build/install-backups/X-0.1.2.app`. The app was relaunched and the authenticated For you feed loaded at 10:02:59 Pacific with automatic refresh enabled.
+
+Live automated scroll input first returned the feed to its top, then a separate upward burst displayed `Stop scrolling to refresh`. After input stopped, the refresh timestamp advanced to 10:03:41 Pacific, For you remained selected, and automatic refresh remained enabled. This was before the next 60-second timer deadline.
+
+Physical MX Ergo hardware acceptance remains pending; automated input does not establish the exact feel or driver settings of that device. No commit or push was performed. Earlier acceptance limitations remain applicable.
 
 ## Version 0.1.2 icon sizing
 
