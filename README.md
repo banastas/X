@@ -2,7 +2,7 @@
 
 An unofficial macOS desktop app that keeps X's **For you** and **Following** feeds in a dedicated window. It uses the real X website, with a compact native toolbar, keyboard shortcuts, automatic refresh, and pull-to-refresh for trackpads and mouse wheels.
 
-Built by [Bill Anastas](https://github.com/banastas) with Swift, SwiftUI, AppKit, and WebKit. This project is independent of X Corp. and is not an official X client.
+Built with Swift, SwiftUI, AppKit, and WebKit. This project is independent of X Corp. and is not an official X client.
 
 ## What it does
 
