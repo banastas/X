@@ -17,3 +17,10 @@ the-decision-layer/*.mp3
 /.wrangler/
 podcast-worker/.dev.vars
 podcast-worker/.wrangler/
+
+# Native macOS build artifacts
+.build/
+.swiftpm/
+dist/
+*.xcuserstate
+xcuserdata/

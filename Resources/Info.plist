@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>X</string>
+<key>CFBundleDisplayName</key><string>X</string>
+<key>CFBundleExecutable</key><string>XDesktop</string>
+<key>CFBundleIdentifier</key><string>as.banast.xdesktop</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>0.1.2</string>
+<key>CFBundleVersion</key><string>3</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
+<key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSPrincipalClass</key><string>NSApplication</string>
+<key>LSApplicationCategoryType</key><string>public.app-category.news</string>
+<key>NSCameraUsageDescription</key><string>Allow X to use the camera when you choose a website feature that needs it.</string>
+<key>NSMicrophoneUsageDescription</key><string>Allow X to use the microphone when you choose a website feature that needs it.</string>
+<key>NSHumanReadableCopyright</key><string>Personal unofficial desktop wrapper. X branding belongs to its owner.</string>
+</dict></plist>
