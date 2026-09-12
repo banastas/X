@@ -1,93 +1,205 @@
 # X for macOS
 
-A personal, unofficial desktop window for X, built with Swift, SwiftUI, AppKit, and WebKit. It displays the real **For you** and **Following** feeds without paid API access or a backend.
+An unofficial macOS desktop app that keeps X's **For you** and **Following** feeds in a dedicated window. It uses the real X website, with a compact native toolbar, keyboard shortcuts, automatic refresh, and pull-to-refresh for trackpads and mouse wheels.
 
-Status: **working local build**. All 42 automated tests pass, including native wheel-refresh integration checks. Both signed-in feeds, login persistence, manual reloads, the automatic timer, and native Back have been checked live. Pull-to-refresh was confirmed on the user's trackpad; version 0.1.3 also supports mouse wheels, with physical MX Ergo acceptance still pending. Extended release acceptance is still incomplete. See [verification](docs/VERIFICATION.md) and the [full specification](docs/SPEC.md).
+Built by [Bill Anastas](https://github.com/banastas) with Swift, SwiftUI, AppKit, and WebKit. This project is independent of X Corp. and is not an official X client.
 
-## Build and run
+## What it does
 
-Requires macOS 14 or later and Xcode with Swift 6 or later. Tested on Apple Silicon with macOS 26.6.2 and Xcode 26.6. There are no external package dependencies.
+- Opens X in its own resizable window, with your login and window size retained between launches.
+- Reloads the selected home feed every 60 seconds after an eligible load completes.
+- Pauses automatic refresh during detected drafts, actively watched or audible media, dialogs, and navigation away from Home.
+- Adds native Home, Back, refresh, and pause controls, plus trackpad and mouse-wheel refresh gestures.
+- Opens external article links in your default browser.
+
+The app displays X's website inside Apple's `WKWebView`; it does not recreate the timeline or fetch posts through the X API. There is no hosted backend, API key, or app-managed post database. You sign into your own X account, and X controls the content and recommendations you see. A reload may reset your reading position and does not guarantee new posts.
+
+**Current version: 0.1.3.** The build and 42 automated tests have passed on Apple Silicon. Core browsing and refresh behavior have also been checked against the live website. This is a locally built app, not an App Store or notarized release. See [verification](docs/VERIFICATION.md) for coverage and limitations.
+
+## Requirements
+
+- A Mac running **macOS 14 Sonoma or later**. Apple Silicon has been tested; Intel Macs and older supported macOS versions have not been validated.
+- **Full Xcode with Swift 6 or later**, in a version compatible with your macOS. The app's minimum runtime version does not mean every Xcode release runs on macOS 14.
+- An internet connection and your own X account for the signed-in feeds.
+- Terminal for the build steps below. Git and the other required build tools are supplied by Xcode.
+
+There are no external Swift package dependencies. Node.js, Python, Homebrew, an X developer account, and a paid Apple Developer membership are not required for this local build.
+
+## Set up your own copy
+
+### 1. Install and initialize Xcode
+
+Install [Xcode from Apple](https://developer.apple.com/xcode/), then open it once. Complete its first-launch setup, including any required license agreement and components.
+
+Open Terminal and check the selected tools:
+
+```sh
+xcode-select -p
+swift --version
+```
+
+The Swift version must be 6 or later. If the selected tools point to `/Library/Developer/CommandLineTools`, or to an older Xcode, select your full Xcode installation for this Terminal session:
+
+```sh
+export DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"
+swift --version
+```
+
+Adjust that path if you installed Xcode elsewhere. This setting applies only to the current shell; it does not change the Mac's global tool selection. See [Apple's command-line build guide](https://developer.apple.com/library/archive/technotes/tn2339/_index.html) for details.
+
+### 2. Download the source
+
+Choose a folder for your projects. For example:
+
+```sh
+mkdir -p ~/Developer
+cd ~/Developer
+git clone https://github.com/banastas/X.git
+cd X
+```
+
+Run the remaining build commands from this `X` folder. You can use a different location; no particular username or checkout path is required.
+
+### 3. Run the tests and build the app
 
 ```sh
 swift test
 scripts/build-app.sh
+```
+
+Wait for the tests to pass before building. The first build can take longer while Swift prepares its caches. WebKit tests run local fixtures in a logged-in macOS desktop session; they do not sign into X or use your account.
+
+The build script compiles the release app, includes the website adapter and icon, validates the app metadata, and applies a local **ad hoc signature**. It prints the location of the finished app:
+
+```text
+dist/X.app
+```
+
+The script does not install the app or upload anything. The signature supports local use; it is not Apple Developer ID signing or notarization.
+
+### 4. Open it and sign in
+
+```sh
 open dist/X.app
 ```
 
-The script creates a release build, bundles the website adapter and gold X icon with transparent Dock margins and rounded corners, and applies a local ad hoc signature. It does not notarize, publish, or install the app. `dist/X.app` is self-contained and can be copied to Applications for personal use. Quit an existing copy before replacing it. Gatekeeper may treat an app transferred to another Mac differently; this build is for the local Mac.
+Sign into X using the website displayed in the app. Complete any normal account verification yourself. Your browser's existing login is not imported automatically, and no other person's login is included in the repository.
 
-Open `Package.swift` in Xcode to edit or debug. Use `scripts/build-app.sh debug` for a debug app with Web Inspector available. The packaged app is the supported launch path, because it supplies the app identity, permissions descriptions, icon, and stable website-data location.
+Once Home loads, select **For you** or **Following**. Automatic refresh starts by default. Use the toolbar pause button or `Command-P` if you prefer to refresh manually.
 
-## Controls
+If macOS blocks the app as an unidentified developer, first confirm you built it from source you trust. Follow [Apple's instructions for opening an app from an unknown developer](https://support.apple.com/guide/mac-help/mh40616/mac), including the per-app **Open Anyway** option in System Settings → Privacy & Security when available. There is no need to disable Gatekeeper globally.
 
-Navigation and refresh controls share one compact native title bar. A thin bottom strip shows refresh status and expands when needed for errors.
+### 5. Keep it in Applications
+
+The generated `X.app` is self-contained. To install it:
+
+1. Quit X with `Command-Q`.
+2. In Finder, open the repository's `dist` folder and copy `X.app` into Applications. You can use your home folder's Applications folder if you prefer a per-user installation.
+3. If an app with the same name already exists, check which app it is before replacing it. Keep a backup of an earlier build if you want to be able to return to it.
+4. Open the installed copy. You can then keep that copy in the Dock.
+
+You do not need to keep Terminal open. Keep the source folder if you want to build updates. Launch the packaged `X.app`, rather than the executable under `.build`, so the app has its bundled resources and stable identity.
+
+## Everyday controls
 
 | Action | Control |
 | --- | --- |
-| Change feed | X's own For you / Following tabs |
-| Automatic refresh | Every 60 seconds after the preceding eligible feed load |
+| Switch feed | X's own For you / Following tabs |
 | Refresh now | Toolbar refresh or `Command-R` |
-| Pull-to-refresh | Trackpad: pull down from the top, cross the threshold, and release. Mouse wheel: at the top, scroll farther toward the top until prompted, then stop. |
-| Pause or resume | Toolbar pause/play or `Command-P` |
+| Pause/resume automatic refresh | Toolbar pause/play or `Command-P` |
 | Home | Toolbar home or `Command-1` |
 | Back | Toolbar back, trackpad back gesture, or `Command-[` |
+| Trackpad refresh | At the top of the timeline, pull down until **Release to refresh** appears, then release |
+| Mouse-wheel refresh | Reach the top and pause; scroll farther toward the top until **Stop scrolling to refresh** appears, then stop |
 
-For a mouse wheel, first reach the top and pause, then scroll toward the top again. The indicator changes to **Stop scrolling to refresh** once armed. A pause of roughly half a second releases the pull. Short bursts, reversing direction, horizontal scrolling, and momentum do not refresh; scrolling up from below the top must finish before a new pull can start. Both coarse wheel steps and precise smooth-wheel input are supported.
+For mouse wheels, a pause of roughly half a second releases an armed pull. Both coarse wheel steps and precise smooth-wheel input are supported. A scroll that starts below the top cannot become a refresh halfway through: stop at the top, then begin a new upward burst. Short pulls, direction reversal, horizontal scrolling, and momentum do not trigger refresh.
 
-Manual refresh and pull-to-refresh work while the automatic timer is paused. They do not turn the timer back on. New refresh triggers are coalesced while a reload is in flight.
+Manual and pull refresh still work while automatic refresh is paused, and they do not turn it back on. Only one reload can be in flight at a time.
 
-The timer suspends during a draft, actively watched or audible media, a modal, non-home navigation, login, minimization, app hiding, display sleep, or session inactivity. A visible window keeps refreshing while another application has focus. Scrolling delays an overdue refresh until at least five seconds after scrolling stops. Resuming from a temporary pause starts a fresh countdown.
+The thin status strip at the bottom explains what the app is doing. Automatic refresh waits during detected drafts, focused composers, dialogs, actively watched or audible media, and non-Home navigation. It also suspends while the app is hidden or minimized, or the desktop session is inactive. A visible window can continue refreshing while another app has focus. Scrolling delays an overdue refresh until at least five seconds after scrolling stops.
 
-Muted autoplay video previews do not suspend refresh. Explicit playback, unmuting, full-screen video, and playing audio do.
+Muted autoplay previews alone do not pause refresh. Explicit playback, unmuting, full-screen video, and playing audio do. Native manual reload or navigation asks before interrupting detected protected activity; pull-to-refresh is disabled during that activity.
 
-Native manual reload or navigation asks before interrupting a detected draft or media. Pull-to-refresh is disabled during protected activity. Refreshing may reset your scroll position. Reloading For you does not guarantee that X will supply different recommendations.
+## Update an installed copy
+
+Quit X first. Return to your source folder, then run:
+
+```sh
+git pull --ff-only
+swift test
+scripts/build-app.sh
+```
+
+If any step fails, stop and resolve it before replacing the installed app. Copy the new `dist/X.app` over your previous build in Finder, then open the installed copy. With the same bundle identifier, replacing the app normally preserves preferences and WebKit website data; X can still expire your login independently.
+
+If you have local source changes and Git refuses the update, review and preserve them before retrying. There is no automatic updater.
+
+To uninstall, quit X and move the installed app to Trash. Removing the app does not automatically erase its saved preferences or website data. Use X's own sign-out control first if you want to end the current login.
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| Git reports “Repository not found” | Confirm the URL and that you have access. A private repository requires authorization until its owner makes it public. |
+| Swift version or SDK errors | Open Xcode to finish setup, check `swift --version`, and select the intended full Xcode installation as described above. |
+| WebKit tests cannot load fixtures | Run the tests in a logged-in macOS desktop session with full Xcode selected. The tests are not validated for headless environments. |
+| The website adapter is missing | Rebuild with `scripts/build-app.sh` and launch `dist/X.app`. Copy the entire app bundle when installing. |
+| Reopening still shows an older build | Quit every running copy and open the one you replaced. Check **X → About X** for the version. |
+| Automatic refresh appears stuck | Read the status strip. Return to Home, select For you or Following, and finish or close any composer, dialog, or active media. Resume the timer if it is paused. |
+| Pull-to-refresh does nothing | Put the pointer over the timeline, reach its top, and begin a new pull after a short pause. Protected activity also disables the gesture. Toolbar refresh remains available. |
+| Google or Apple sign-in does not complete | Embedded-browser login can be restricted by the provider. The full OAuth flows have not been acceptance-tested; use X's direct sign-in flow if available. |
+| The feed stops loading after a website change | Try the toolbar's Retry/Refresh control. The adapter may need updating if X changes its markup; automatic refresh stops when it cannot recognize the feed. |
 
 ## Storage and privacy
 
-WebKit manages the persistent X session and website storage. App preferences retain automatic-refresh state, selected feed, and window geometry. The bundle identifier is `as.banast.xdesktop`.
+Each installation uses its own local WebKit website data and the account signed in on that Mac. Preferences retain the automatic-refresh setting, selected feed, and window geometry. The app's bundle identifier is `as.banast.xdesktop`; it identifies the application and does not connect users to the maintainer's X account.
 
-There is no app-managed post database, credential extraction, telemetry, backend, private-API integration, or automated engagement. A small isolated script observes UI state and restores the selected tab when needed. Only booleans, a feed index, and short state descriptions cross into Swift. X's website still makes its own normal network requests.
+The app does not extract credentials, save posts to a database, add telemetry, or automate engagement. An isolated website script reports limited UI state—booleans, a feed index, and short status descriptions—to the native app. It also restores the selected feed when needed. X's website still makes its own network requests and follows X's own data practices.
 
-External article links open in the default browser. Google and Apple authentication use separate WebKit windows sharing the same website data store. These authentication providers can impose their own embedded-browser restrictions; their complete flows require live testing.
+The repository contains source, synthetic test fixtures, documentation, and icon assets. Build output and local app bundles are excluded from Git. Do not include website-data folders, cookies, credentials, or private screenshots in bug reports.
 
-## Development checks
+## Development
+
+Open `Package.swift` in Xcode to inspect or edit the project. No separate `.xcodeproj` is required. For an app with Web Inspector enabled:
 
 ```sh
-swift test
-swift build -c release -Xswiftc -warnings-as-errors
-scripts/build-app.sh
-codesign --verify --deep --strict dist/X.app
-plutil -lint Resources/Info.plist
-git diff --check
+scripts/build-app.sh debug
 ```
 
-The scheduler tests use explicit monotonic timestamps. WebKit tests load local fixtures and exercise the actual website adapter in an isolated content world. They do not contact X or use account credentials.
-
-For a visual local fixture, build the debug app and launch:
+For a visual test that does not use an X account, quit any running copy of the app, then run:
 
 ```sh
 open dist/X.app --args --fixture "$PWD/Tests/XDesktopTests/Fixtures/home.html"
 ```
 
-Quit the existing app first. Fixture mode is compiled out of release builds and uses an isolated nonpersistent website session. It does not validate current X markup. A fixture window is explicitly titled as a test.
+Fixture mode is available only in debug builds, uses nonpersistent website storage and separate preferences, and labels its window as a test. It does not validate X's current website markup. Rebuild without `debug` for normal release use.
 
-## Limitations
+Standard validation:
 
-- The two-hour soak, comprehensive VoiceOver coverage, actual sleep/lock transitions, and full camera/microphone/upload/OAuth flows have not been acceptance-tested. The compact live window was checked visually; all minimum-size and display configurations have not been tested.
-- DOM assumptions are centralized in `Website.js`. X can change them. If the home feed is not recognized, automatic and pull refresh stop rather than reloading blindly.
-- Draft protection covers visible editable content, focused editors, file-input attachments, and open dialogs. X-specific attachment or composer changes still require live verification.
-- The app detects main-document HTTP 429 responses. Limits rendered inside X's application may not expose an HTTP status to this layer.
-- No downloaded-file workflow or full website feature parity is claimed. Camera, microphone, uploads, OAuth provider flows, and notifications are not acceptance-tested.
-- macOS 14 is the deployment target, not a claim of runtime testing on that OS version.
-- X's policy broadly prohibits non-API website automation. The chosen interval is not a documented exemption or a guarantee against enforcement.
+```sh
+swift test
+scripts/build-app.sh
+codesign --verify --deep --strict dist/X.app
+plutil -lint dist/X.app/Contents/Info.plist
+git diff --check
+```
 
-## Project layout
+The packaging script already treats compiler warnings as errors and verifies the generated signature. Tests cover refresh scheduling, gestures, URL handling, the real WebKit adapter with local fixtures, and browser-model reload behavior.
 
-- `Sources/XCore`: deterministic refresh scheduling, gesture recognition, and URL policy.
-- `Sources/XDesktop`: native interface, WebKit coordinator, and isolated website adapter.
-- `Tests`: scheduler, gesture, URL policy, and real-WebKit fixture checks.
-- `Resources`: app metadata and [icon provenance](Resources/ICON-SOURCE.md).
-- `scripts/build-app.sh`: local application packaging and signature verification.
-- `docs/SPEC.md`: original product and acceptance specification.
+| Path | Purpose |
+| --- | --- |
+| `Sources/XCore` | Refresh scheduling, gesture recognition, and URL policy |
+| `Sources/XDesktop` | Native interface, WebKit coordination, and isolated website adapter |
+| `Tests` | Deterministic tests and WebKit fixture checks |
+| `Resources` | App metadata and [icon provenance](Resources/ICON-SOURCE.md) |
+| `scripts/build-app.sh` | Local app packaging and signature verification |
+| `docs/SPEC.md` | Product behavior and acceptance criteria |
+| `docs/VERIFICATION.md` | Tested behavior and remaining acceptance work |
 
-No commit, push, public distribution, or paid enrollment is part of this implementation. Local installed-app updates are recorded in the verification report.
+## Limitations and project status
+
+X can change its website or login requirements without notice. The app does not promise complete website feature parity, offline access, multiple accounts, or native notifications. Full upload, camera, microphone, and Google/Apple OAuth flows, comprehensive accessibility checks, older macOS/Intel compatibility, and an extended stability soak remain unverified. Physical mouse-wheel behavior can vary by device and driver. See the [verification report](docs/VERIFICATION.md) for details.
+
+[X's automation rules](https://help.x.com/en/rules-and-policies/x-automation) prohibit non-API website automation. They do not explicitly approve this app's timed reloads. The 60-second interval is a usability choice, not a documented exemption or assurance against account enforcement.
+
+X's name and marks belong to their respective owner. The included attribution does not establish permission to redistribute those marks. A source-code license has not yet been selected; making a repository viewable does not itself grant an open-source license. See [GitHub's licensing explanation](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository).

@@ -1,24 +1,11 @@
+# macOS filesystem metadata
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
-ehthumbs.db
-Thumbs.db
-/astro/node_modules/
-/node_modules/
 
-# Podcast audio is hosted on podcast.banast.as. Cloudflare Pages rejects
-# uploaded static assets over 25 MiB (26,214,400 bytes), so do not ship
-# new episode MP3s here.
-the-decision-layer/*.mp3
-
-# Local Worker state and secrets.
-/.wrangler/
-podcast-worker/.dev.vars
-podcast-worker/.wrangler/
-
-# Native macOS build artifacts
+# Native macOS build artifacts and local Xcode state
 .build/
 .swiftpm/
 dist/

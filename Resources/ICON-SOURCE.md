@@ -2,7 +2,7 @@
 
 ## Current icon: gold X
 
-`x-gold-icon.png` is the bundled icon artwork source for version 0.1.2. It was created on September 12, 2026 with the built-in image-generation tool, using `x-site-icon.png` as the edit target. The user requested the X logo over photoreal gold. The generated asset was visually reviewed and the packaged icon was checked in the running app's About panel.
+`x-gold-icon.png` is the bundled icon artwork source. It was generated with OpenAI image generation using `x-site-icon.png` as the edit target, placing the X logo over photoreal gold. The packaged icon was checked visually in the app's About panel.
 
 The build invokes `scripts/render-icon.swift` to draw the unchanged local artwork into a rounded tile measuring 824 by 824 points on a transparent 1024 by 1024 canvas, scaled for each icon resolution. The 100-point outer margins correct the oversized Dock footprint of version 0.1.1. The corner radius is 22% of tile width. `iconutil` packages the resulting sizes as `AppIcon.icns`. The original website and generated gold assets are preserved separately. No regenerated artwork was adopted for the sizing fix.
 
@@ -20,4 +20,4 @@ https://abs.twimg.com/responsive-web/client-web/icon-ios.77d25eb62d3da71ba.png
 
 This URL was discovered in the `apple-touch-icon` link in the HTML served by X on September 11, 2026.
 
-The X name and branding belong to their respective owner. This is a personal, unofficial wrapper. This source attribution does not establish permission for public distribution.
+The X name and branding belong to their respective owner. This is an independent, unofficial wrapper. This source attribution does not establish permission for public distribution.

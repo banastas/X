@@ -1,4 +1,4 @@
-# X for macOS: Personal Desktop Reader
+# X for macOS: Desktop Reader
 
 Status: product specification. The local implementation exists; see [verification](VERIFICATION.md) for completed checks and remaining acceptance work.
 
@@ -6,16 +6,16 @@ Status: product specification. The local implementation exists; see [verificatio
 
 Build a small macOS desktop app that stays open throughout the day and presents X's real **For you** and **Following** feeds. The app periodically reloads the selected feed so the user can glance at updated content.
 
-This is a personal application for Bill's Mac. It uses X's website inside a native window, with no paid X API and no application backend.
+This is an unofficial app built locally from source. It uses X's website inside a native window, with no paid X API and no application backend.
 
 The experience should be compact and restrained. Preserving the last-read post or scroll position is not required.
 
-## 2. Agreed requirements
+## 2. Requirements
 
 | Item | Requirement |
 | --- | --- |
 | App name | X |
-| Icon | Black X mark over photoreal gold, derived from the website icon for this personal build. |
+| Icon | Black X mark over photoreal gold, derived from the website icon; see the icon provenance and branding limitations. |
 | Platform | Native macOS application. |
 | Language and frameworks | Swift, SwiftUI, WebKit, and AppKit where required. |
 | Content | The authenticated X website in `WKWebView`. |
@@ -30,7 +30,7 @@ The experience should be compact and restrained. Preserving the last-read post o
 
 Implementation clarification: muted autoplay previews do not pause refresh. Explicit playback, audible media, full-screen video, and playing audio do. This avoids a permanently paused feed when X autoplays previews.
 
-The remaining details below are proposed implementation defaults. They make the agreed behavior testable and can be adjusted during the prototype.
+The details below define the intended behavior and acceptance criteria. Consult the verification report for what has been implemented and tested.
 
 ## 3. Scope
 
@@ -163,11 +163,11 @@ Prototype AppKit scroll-event observation around `WKWebView`, combined with a mi
 
 Test whether X already handles the gesture in the target configuration before adding competing behavior. Reuse functioning website behavior when it satisfies the requirements.
 
-Pull-to-refresh is a required feature, but its reliability is unverified. If it cannot be implemented without breaking normal scrolling, report the exact failure and leave the release unaccepted rather than silently substituting the toolbar button.
+Pull-to-refresh is a required feature. Trackpad and automated wheel checks have passed; physical wheel-device coverage remains incomplete. Report failures with normal scrolling as acceptance issues rather than substituting the toolbar button.
 
 ## 7. Architecture
 
-Proposed deployment target: macOS 14 or later, confirmed against the installed SDK and target Mac before implementation. Validate Apple Silicon first. Intel support is not required for the first personal build.
+Deployment target: macOS 14 or later. Apple Silicon has been tested; Intel Macs and older supported macOS versions remain unvalidated.
 
 Use a small, dependency-free architecture:
 
@@ -284,15 +284,15 @@ Inspect console output and distinguish app errors from third-party website error
 ## 12. Deliverables and completion
 
 - Swift source and a maintainable Xcode project or another justified native build configuration.
-- A local runnable `X.app` using an appropriate personal bundle identifier, such as `as.banast.xdesktop`, rather than impersonating X's official bundle identifier.
+- A local runnable `X.app` using the independent bundle identifier `as.banast.xdesktop`.
 - Bundled icon asset with its source recorded.
 - Tests for the scheduler and gesture behavior.
 - README covering requirements, building, running, local installation, controls, storage, and known limitations.
 - A verification report containing exact commands, live test results, and unresolved issues.
 
-The implementation repository is `/Users/banastas/GitHub/X`. This document does not authorize a commit, push, public release, paid service enrollment, or Apple Developer purchase.
+Source repository: [banastas/X](https://github.com/banastas/X). Build commands run from the repository root, regardless of its location on disk.
 
-Code signing and local installation must be verified on the target Mac. Do not assume that public distribution or notarization is included in a local personal build.
+Code signing and local installation must be verified on the target Mac. Do not assume that public distribution or notarization is included in a local build.
 
 Completion requires the core acceptance criteria to pass or a clearly identified blocking limitation to be reported. Do not call the app complete based on compilation alone.
 
@@ -302,14 +302,14 @@ The design makes no paid X API calls and requires no hosted backend. Any optiona
 
 X's rules broadly prohibit non-API website automation. The published rule does not specifically approve a personal WebView's timed page reloads. A 60-second interval is a user-experience choice, not a documented safe interval. Randomization is not part of the design and is not an enforcement-risk mitigation.
 
-Using the X name and icon is the chosen identity for this personal build, not a finding of trademark permission. Reassess branding and platform terms before any distribution.
+Using the X name and icon is the current project identity, not a finding of trademark permission. Reassess branding and platform terms before any distribution.
 
 | Judgment | Confidence |
 | --- | --- |
 | SwiftUI and WebKit can provide the native shell and scheduled reload mechanism. | High |
 | The design avoids X API usage charges. | High |
-| Both actual website feeds, persistent login, and selected-tab reload behavior will work reliably in this specific app. | Moderate, pending prototype validation |
-| Pull-to-refresh can coexist reliably with X's current scrolling behavior. | Moderate, pending trackpad testing |
+| Both home feeds, persistent login, and selected-tab reload behavior work in the tested configuration. | High for the observed checks; compatibility depends on X |
+| Pull-to-refresh coexists with scrolling in the tested configuration. | Trackpad and automated wheel checks passed; broader device coverage pending |
 | X will permit or tolerate this automated-refresh use without account enforcement. | Unknown |
 
 ## 14. Reference documentation
@@ -321,4 +321,4 @@ Using the X name and icon is the chosen identity for this personal build, not a 
 - [X: API timelines, including the chronological home feed](https://docs.x.com/x-api/posts/timelines/introduction)
 - [X: API pricing](https://docs.x.com/x-api/getting-started/pricing)
 
-External website behavior and policies can change. Recheck the relevant documentation and test the real website when implementation begins.
+External website behavior and policies can change. Recheck the relevant documentation and test the real website when changing the integration.
