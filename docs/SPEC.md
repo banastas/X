@@ -87,13 +87,15 @@ For you remains an algorithmically ranked feed. A successful reload does not gua
 
 Use one compact native title bar containing the window controls and toolbar actions:
 
-- Back navigation, enabled when available.
+- Back navigation, enabled when available. Forward is available from the View menu.
 - Refresh, with `Command-R`.
 - Pause/resume automatic refresh, with a clear accessible state.
 
-Provide a standard menu command for returning to Home. Navigation away from the home timeline suspends the automatic timer.
+Provide a standard menu command for returning to Home. Navigation away from the home timeline suspends the automatic timer. Navigation controls stay available while a page loads. Provide standard Edit commands (including Redo and spelling/substitution options for the composer), View commands for text zoom and full screen, and a Window command that reopens the main window after it is closed.
 
-Use a thin bottom status strip, allowing additional height for errors. Show quiet status such as `Auto-refresh on · 60s`, `Auto-refresh paused`, or a concise error. Avoid a continuously changing countdown or prominent success banners. Label timestamps as page refresh times, never as proof that new posts arrived.
+Reload, Home, Back, Forward, opening an X link meant for a new window, and quitting ask before discarding a detected unsent draft. Media playback, an empty focused composer, or an open dialog alone does not require confirmation for an explicit action. Swipe navigation cannot ask, so it is disabled while a draft exists.
+
+Use a thin bottom status strip, allowing additional height for errors. Show quiet status such as `Auto-refresh every 60s · Refreshed 2:14 PM`, `Auto-refresh paused`, or a concise error. Pause reasons state that automatic refresh is paused, for example `Auto-refresh paused while composing`. A signed-out user sees `Sign in to load your feeds`. Avoid a continuously changing countdown or prominent success banners. Label timestamps as page refresh times, never as proof that new posts arrived.
 
 Default automatic refresh to on. Persist an explicit user pause across launches. Temporary pauses must not overwrite that preference.
 
@@ -114,16 +116,16 @@ Default automatic refresh to on. Persist an explicit user pause across launches.
 Automatic refresh requires all of the following:
 
 - The user has enabled it.
-- The main window is visible and not minimized or closed.
+- The main window is visible and not minimized, closed, on another Space, fully covered, or behind the lock screen.
 - The Mac is awake and its session is unlocked.
 - The authenticated home timeline is active and sufficiently loaded.
 - No navigation, reload, authentication challenge, or recoverable error is unresolved.
 - The user is not composing text, viewing an individual post, watching video, or using a modal that reload would interrupt.
-- No active pull gesture or scroll interaction is underway.
+- No active pull gesture, scroll, or other direct input is underway, and no popover menu is open.
 
 A visible window may continue refreshing while another app has keyboard focus. Being a background app alone does not pause refresh, because the intended use is a feed left visible beside other work.
 
-After scrolling, wait for at least five seconds without scrolling before an overdue refresh can run. After an interruption such as composing, video playback, minimization, or sleep ends, begin a fresh 60-second countdown. Do not refresh immediately on wake or restore.
+After direct input in the page (scrolling, pointer movement, clicks, or keys), wait for at least five seconds without input before an overdue refresh can run. While the feed is scrolled away from its top, a due refresh also waits until two minutes have passed without input, or until the reader returns to the top, so it does not replace content being read. After an interruption such as composing, video playback, minimization, or sleep ends, begin a fresh 60-second countdown. Do not refresh immediately on wake or restore.
 
 If a draft remains open after focus moves away, continue suspending automatic refresh. Do not infer that editing has finished solely from loss of keyboard focus.
 
@@ -155,7 +157,7 @@ No timed reload is permitted during login or an account challenge. There is no c
 - Cancel if the user switches feeds, navigates away, opens a modal, or the app loses the gesture before release.
 - Do not trigger on login screens, profiles, search results, individual posts, messages, or other non-home views.
 - If a protected activity or unsaved draft is active, show a brief paused explanation instead of reloading.
-- Mouse wheels support an intentional overscroll burst that begins at the top: normalize coarse deltas to 16 points per line, arm at the same 70-point threshold, and release after 350 ms without input (observed by the 250 ms native timer). Show `Stop scrolling to refresh` when armed. A burst starting below the top stays rejected until a pause; short bursts, reversal, horizontal motion, and momentum must not refresh. Recheck the renderer's top boundary and protected activity immediately before reload. Toolbar and keyboard refresh remain available.
+- Mouse wheels support an intentional overscroll burst that begins at the top: normalize coarse deltas to 16 points per line, arm at the same 70-point threshold, and release after 350 ms without input (observed by the 250 ms native timer). Show `Keep scrolling to refresh` while pulling and `Stop scrolling to refresh` when armed. A burst starting below the top stays rejected until a pause; short bursts, reversal, horizontal motion, and momentum must not refresh. Recheck the renderer's top boundary and protected activity immediately before reload. Toolbar and keyboard refresh remain available.
 
 ### Implementation approach
 
@@ -220,9 +222,12 @@ Provide a clearly labeled website-data reset in Settings only if needed for sess
 | Repeated transient failures | Back off to 120, 240, then at most 300 seconds between automatic attempts. Reset after success. |
 | Explicit rate-limit response | Suspend normal polling and honor a provided retry time; otherwise require manual retry. |
 | Login expiry or account challenge | Suspend automatic refresh and allow the user to complete the website flow. |
-| Web content process termination | Show a recoverable error and a Reload action; avoid an infinite relaunch loop. |
+| Web content process termination | Reload once automatically. A second termination within five minutes shows a recoverable error and a Reload action, avoiding an infinite relaunch loop. |
 | Feed structure or state detection failure | Suspend automation and explain the compatibility issue. |
-| Loading exceeds a bounded timeout | End the indefinite progress state and expose Retry; do not start another concurrent reload. |
+| Loading exceeds a bounded timeout | End the indefinite progress state, expose Retry, and retry with the transient-failure backoff. If the feed loaded but was not recognized, suspend automation instead. Do not start another concurrent reload. |
+| First load fails before any page is committed | Retry and automatic retries load Home, because there is no page to reload. |
+| X renders its own feed error during a reload | End the reload, show the error, and retry with backoff. Recovery through X's own Retry control clears the error. |
+| A page redirects to an unrelated site without a click | Keep the current page and offer to open the destination in the default browser. |
 | X returns unchanged recommendations | Treat as a successful page refresh, without claiming new content. |
 
 Do not promise detection of every X-side rate limit. Some failures may be rendered inside the website rather than exposed through main-document navigation responses. Verify the observable cases and document limits.

@@ -38,10 +38,29 @@ final class RefreshTests: XCTestCase {
         reasons.remove("video"); s.setEligible(reasons.isEmpty, now: 120)
         XCTAssertEqual(s.deadline, 180)
     }
-    func testScrollDefersOverdueRefreshFiveSeconds() {
-        var s = RefreshSchedule(); s.setEligible(true, now: 0); s.scrolled(now: 59)
+    func testInteractionDefersOverdueRefreshFiveSeconds() {
+        var s = RefreshSchedule(); s.setEligible(true, now: 0); s.interacted(now: 59)
         XCTAssertFalse(s.isDue(now: 63.9, mayRetry: true))
         XCTAssertTrue(s.isDue(now: 64, mayRetry: true))
+    }
+    func testReadingAwayFromTopWaitsForIdleReader() {
+        var s = RefreshSchedule(); s.setEligible(true, now: 0); s.interacted(now: 50)
+        XCTAssertFalse(s.isDue(now: 100, mayRetry: true, reading: true))
+        XCTAssertFalse(s.isDue(now: 169.9, mayRetry: true, reading: true))
+        XCTAssertTrue(s.isDue(now: 170, mayRetry: true, reading: true))
+        // Returning to the top releases the overdue refresh once input settles.
+        XCTAssertTrue(s.isDue(now: 100, mayRetry: true, reading: false))
+    }
+    func testReadingDoesNotHoldBackFailureRetries() {
+        var s = RefreshSchedule(); s.setEligible(true, now: 0); s.interacted(now: 10)
+        _ = s.begin(); s.failed(now: 10)
+        XCTAssertTrue(s.isDue(now: 130, mayRetry: true, reading: true))
+    }
+    func testCancelledNavigationRestartsInterval() {
+        var s = RefreshSchedule(); s.setEligible(true, now: 0)
+        _ = s.begin(); s.cancelled(now: 30)
+        XCTAssertFalse(s.loading)
+        XCTAssertEqual(s.deadline, 90)
     }
     func testBackoffAndReset() {
         var s = RefreshSchedule()

@@ -37,7 +37,8 @@ final class WheelRefreshTests: XCTestCase {
         defaults.set(false, forKey: "autoRefresh")
         defaults.set(1, forKey: "selectedFeed")
         let fixture = Bundle.module.url(forResource: "home", withExtension: "html", subdirectory: "Fixtures")!
-        let model = BrowserModel(defaults: defaults, fixtureURL: fixture)
+        // The fixture window sits behind other windows, so judge visibility by ordering, not occlusion.
+        let model = BrowserModel(defaults: defaults, fixtureURL: fixture, windowVisible: { $0.isVisible })
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 700),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false

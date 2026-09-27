@@ -7,14 +7,14 @@ Built with Swift, SwiftUI, AppKit, and WebKit. This project is independent of X 
 ## What it does
 
 - Opens X in its own resizable window, with your login and window size retained between launches.
-- Reloads the selected home feed every 60 seconds after an eligible load completes.
-- Pauses automatic refresh during detected drafts, actively watched or audible media, dialogs, and navigation away from Home.
-- Adds native Home, Back, refresh, and pause controls, plus trackpad and mouse-wheel refresh gestures.
-- Opens external article links in your default browser.
+- Reloads the selected home feed every 60 seconds after an eligible load completes. While you are scrolled down reading, it waits until you return to the top or stop interacting for two minutes.
+- Pauses automatic refresh during detected drafts, actively watched or audible media, dialogs, open menus, navigation away from Home, and whenever the window cannot be seen.
+- Adds native Home, Back/Forward, refresh, auto-refresh, and zoom controls, plus trackpad and mouse-wheel refresh gestures.
+- Opens external article links in your default browser and saves downloads to your Downloads folder.
 
 The app displays X's website inside Apple's `WKWebView`; it does not recreate the timeline or fetch posts through the X API. There is no hosted backend, API key, or app-managed post database. You sign into your own X account, and X controls the content and recommendations you see. A reload may reset your reading position and does not guarantee new posts.
 
-**Current version: 0.1.3.** The build and 42 automated tests have passed on Apple Silicon. Core browsing and refresh behavior have also been checked against the live website. This is a locally built app, not an App Store or notarized release. See [verification](docs/VERIFICATION.md) for coverage and limitations.
+**Current version: 0.2.0.** The build and 58 automated tests have passed on Apple Silicon. Core browsing and refresh behavior were checked against the live website during 0.1.x; the 0.2.0 fixes are covered by local fixture tests and have not yet been rechecked live. This is a locally built app, not an App Store or notarized release. See [verification](docs/VERIFICATION.md) for coverage and limitations.
 
 ## Requirements
 
@@ -38,7 +38,7 @@ xcode-select -p
 swift --version
 ```
 
-The Swift version must be 6 or later. If the selected tools point to `/Library/Developer/CommandLineTools`, or to an older Xcode, select your full Xcode installation for this Terminal session:
+The Swift version must be 6 or later. If the selected tools point to `/Library/Developer/CommandLineTools`, or to an older Xcode, select your full Xcode installation for this Terminal session. Command Line Tools alone cannot run the tests; `swift test` then fails with `unable to resolve module dependency: 'XCTest'`.
 
 ```sh
 export DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"
@@ -77,6 +77,8 @@ dist/X.app
 
 The script does not install the app or upload anything. The signature supports local use; it is not Apple Developer ID signing or notarization.
 
+The app is built for the Mac you build on. To copy it to a Mac with the other processor type, build a universal app with `scripts/build-app.sh release universal`. Recent Xcode releases warn that the Intel architecture is deprecated; the Intel build still targets macOS 14 but has not been tested.
+
 ### 4. Open it and sign in
 
 ```sh
@@ -85,7 +87,7 @@ open dist/X.app
 
 Sign into X using the website displayed in the app. Complete any normal account verification yourself. Your browser's existing login is not imported automatically, and no other person's login is included in the repository.
 
-Once Home loads, select **For you** or **Following**. Automatic refresh starts by default. Use the toolbar pause button or `Command-P` if you prefer to refresh manually.
+Once Home loads, select **For you** or **Following**. Automatic refresh starts by default. Use the toolbar timer button or `Command-P` if you prefer to refresh manually.
 
 If macOS blocks the app as an unidentified developer, first confirm you built it from source you trust. Follow [Apple's instructions for opening an app from an unknown developer](https://support.apple.com/guide/mac-help/mh40616/mac), including the per-app **Open Anyway** option in System Settings → Privacy & Security when available. There is no need to disable Gatekeeper globally.
 
@@ -106,19 +108,26 @@ You do not need to keep Terminal open. Keep the source folder if you want to bui
 | --- | --- |
 | Switch feed | X's own For you / Following tabs |
 | Refresh now | Toolbar refresh or `Command-R` |
-| Pause/resume automatic refresh | Toolbar pause/play or `Command-P` |
+| Pause/resume automatic refresh | Toolbar timer button (filled when on) or `Command-P` |
 | Home | Toolbar home or `Command-1` |
-| Back | Toolbar back, trackpad back gesture, or `Command-[` |
+| Back / Forward | Toolbar back, trackpad swipe, `Command-[` / `Command-]` |
+| Text size | `Command-+`, `Command-−`, `Command-0` (remembered between launches) |
+| Full screen | `Control-Command-F` |
+| Reopen a closed window | Click the Dock icon, or **Window → Show Main Window** |
 | Trackpad refresh | At the top of the timeline, pull down until **Release to refresh** appears, then release |
-| Mouse-wheel refresh | Reach the top and pause; scroll farther toward the top until **Stop scrolling to refresh** appears, then stop |
+| Mouse-wheel refresh | Reach the top and pause; keep scrolling toward the top until **Stop scrolling to refresh** appears, then stop |
 
 For mouse wheels, a pause of roughly half a second releases an armed pull. Both coarse wheel steps and precise smooth-wheel input are supported. A scroll that starts below the top cannot become a refresh halfway through: stop at the top, then begin a new upward burst. Short pulls, direction reversal, horizontal scrolling, and momentum do not trigger refresh.
 
 Manual and pull refresh still work while automatic refresh is paused, and they do not turn it back on. Only one reload can be in flight at a time.
 
-The thin status strip at the bottom explains what the app is doing. Automatic refresh waits during detected drafts, focused composers, dialogs, actively watched or audible media, and non-Home navigation. It also suspends while the app is hidden or minimized, or the desktop session is inactive. A visible window can continue refreshing while another app has focus. Scrolling delays an overdue refresh until at least five seconds after scrolling stops.
+The thin status strip at the bottom explains what the app is doing and when the page last refreshed. Automatic refresh waits during detected drafts, focused composers, dialogs, open menus, actively watched or audible media, and non-Home navigation. It also suspends while the app is hidden, the window is minimized, closed, on another Space, or fully covered, and while the screen is locked or asleep. A visible window can continue refreshing while another app has focus.
 
-Muted autoplay previews alone do not pause refresh. Explicit playback, unmuting, full-screen video, and playing audio do. Native manual reload or navigation asks before interrupting detected protected activity; pull-to-refresh is disabled during that activity.
+Direct input in the page (scrolling, pointer movement, clicks, and keys) delays an overdue refresh until at least five seconds after it stops. While you are scrolled down the feed, a due refresh waits until you scroll back to the top or leave the page untouched for two minutes, so it does not replace what you are reading.
+
+Muted autoplay previews alone do not pause refresh. Explicit playback, unmuting, full-screen video, and playing audio do. Closing the window pauses playing media. Reload, Home, Back, Forward, opening an X link meant for a new window, and quitting ask before discarding a detected unsent post, and trackpad swipe navigation is disabled while one exists. Pull-to-refresh is disabled during protected activity.
+
+If a load fails or stalls, the app retries after about 2, 4, and then 5 minutes while automatic refresh is on and the window is visible. If X's feed layout is not recognized, it stops and waits for you instead. A web-process crash reloads once automatically; a second crash within five minutes waits for **Retry**. When the page tries to redirect to another site without a click, the status strip offers **Open in Browser** instead of following it.
 
 ## Update an installed copy
 
@@ -142,17 +151,18 @@ To uninstall, quit X and move the installed app to Trash. Removing the app does 
 | --- | --- |
 | Git reports “Repository not found” | Confirm the URL and that you have access. A private repository requires authorization until its owner makes it public. |
 | Swift version or SDK errors | Open Xcode to finish setup, check `swift --version`, and select the intended full Xcode installation as described above. |
+| `unable to resolve module dependency: 'XCTest'` | Command Line Tools are selected instead of Xcode. Set `DEVELOPER_DIR` as described in step 1, then rerun `swift test`. |
 | WebKit tests cannot load fixtures | Run the tests in a logged-in macOS desktop session with full Xcode selected. The tests are not validated for headless environments. |
 | The website adapter is missing | Rebuild with `scripts/build-app.sh` and launch `dist/X.app`. Copy the entire app bundle when installing. |
 | Reopening still shows an older build | Quit every running copy and open the one you replaced. Check **X → About X** for the version. |
-| Automatic refresh appears stuck | Read the status strip. Return to Home, select For you or Following, and finish or close any composer, dialog, or active media. Resume the timer if it is paused. |
+| Automatic refresh appears stuck | Read the status strip. Return to Home, select For you or Following, scroll back to the top, and finish or close any composer, dialog, menu, or active media. Resume the timer if it is paused. Pinned list tabs are not auto-refreshed. |
 | Pull-to-refresh does nothing | Put the pointer over the timeline, reach its top, and begin a new pull after a short pause. Protected activity also disables the gesture. Toolbar refresh remains available. |
-| Google or Apple sign-in does not complete | Embedded-browser login can be restricted by the provider. The full OAuth flows have not been acceptance-tested; use X's direct sign-in flow if available. |
+| Google or Apple sign-in does not complete | Embedded-browser login can be restricted by the provider. When the sign-in window returns to X, the app closes it and reloads Home in the main window. The full OAuth flows have not been acceptance-tested; use X's direct sign-in flow if available. |
 | The feed stops loading after a website change | Try the toolbar's Retry/Refresh control. The adapter may need updating if X changes its markup; automatic refresh stops when it cannot recognize the feed. |
 
 ## Storage and privacy
 
-Each installation uses its own local WebKit website data and the account signed in on that Mac. Preferences retain the automatic-refresh setting, selected feed, and window geometry. The app's bundle identifier is `as.banast.xdesktop`; it identifies the application and does not connect users to the maintainer's X account.
+Each installation uses its own local WebKit website data and the account signed in on that Mac. Preferences retain the automatic-refresh setting, selected feed, page zoom, and window geometry. Downloads started from the website are saved to your Downloads folder. The app's bundle identifier is `as.banast.xdesktop`; it identifies the application and does not connect users to the maintainer's X account.
 
 The app does not extract credentials, save posts to a database, add telemetry, or automate engagement. An isolated website script reports limited UI state—booleans, a feed index, and short status descriptions—to the native app. It also restores the selected feed when needed. X's website still makes its own network requests and follows X's own data practices.
 

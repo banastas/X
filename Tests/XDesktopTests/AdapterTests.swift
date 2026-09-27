@@ -63,7 +63,7 @@ final class AdapterTests: XCTestCase, WKScriptMessageHandler {
     }
     func testPlayingMediaProtectsEvenWithoutFocus() async throws {
         try await load(); defer { close() }
-        try await change("var media = document.createElement('audio'); media.src='silence.wav'; media.muted=true; media.loop=true; document.body.append(media); media.play(); void 0") { $0.protected && $0.reason == "Media playing" }
+        try await change("var media = document.createElement('audio'); media.src='silence.wav'; media.muted=true; media.loop=true; document.body.append(media); media.play(); void 0") { $0.protected && $0.reason == "Auto-refresh paused while media plays" }
     }
     func testScrollBoundaryTracksDocumentAndNestedContainers() async throws {
         try await load(); defer { close() }
@@ -102,6 +102,32 @@ final class AdapterTests: XCTestCase, WKScriptMessageHandler {
         try await change("var media=document.createElement('video'); media.src='silence.wav'; media.loop=true; document.body.append(media); media.play(); void 0") { $0.protected }
         try await change("media.muted=true") { !$0.protected && $0.ready }
         try await change("media.muted=false") { $0.protected }
+    }
+    func testReadingPositionAndInteractionAreReported() async throws {
+        try await load(); defer { close() }
+        XCTAssertTrue(state?.feedTop == true)
+        try await change("window.scrollTo(0, 300)") { !$0.feedTop && $0.active }
+        try await change("window.scrollTo(0, 0)") { $0.feedTop }
+        try await change("void 0") { !$0.active }
+        try await change("var menu=document.createElement('div'); menu.role='menu'; menu.textContent='Menu'; document.body.append(menu)") { $0.active }
+        try await change("menu.remove()") { !$0.active }
+    }
+    func testDraftIsDistinctFromAFocusedEmptyComposer() async throws {
+        try await load(); defer { close() }
+        try await change("fixture.draft('')") { $0.protected && !$0.draft }
+        try await change("document.querySelector('textarea').value='Hello'; document.querySelector('textarea').dispatchEvent(new Event('input', {bubbles: true}))") { $0.draft }
+        try await change("fixture.clearDraft()") { !$0.draft && !$0.protected }
+    }
+    func testSignInAndPinnedTabReasons() async throws {
+        try await load(); defer { close() }
+        try await change("document.documentElement.dataset.xDesktopFixture='signin'") { !$0.home && $0.reason == "Sign in to load your feeds" }
+        try await change("document.documentElement.dataset.xDesktopFixture='true'; var extra=document.createElement('button'); extra.role='tab'; extra.textContent='List'; document.querySelector('[role=tablist]').append(extra); document.querySelectorAll('[role=tab]').forEach(tab => tab.setAttribute('aria-selected','false')); extra.setAttribute('aria-selected','true')") {
+            $0.otherTab && !$0.ready && $0.reason == "Auto-refresh covers For you and Following only"
+        }
+    }
+    func testFeedErrorIsReported() async throws {
+        try await load(); defer { close() }
+        try await change("var error=document.createElement('div'); error.dataset.testid='error-detail'; error.textContent='Something went wrong'; document.querySelector('main').append(error)") { $0.failed && !$0.ready }
     }
     func testUnknownBridgeMessagesAreRejected() {
         XCTAssertNil(WebsiteState.decode(["home": true]))
