@@ -81,7 +81,7 @@ The selected tab must survive an automatic or manual reload within the running s
 
 Cross-launch tab restoration should use X's own saved state where reliable. If necessary, store only the last selected tab locally. Do not silently substitute Following for For you.
 
-For you remains an algorithmically ranked feed. A successful reload does not guarantee new recommendations or chronological results. Following remains the feed rendered by X, not a separate API approximation.
+For you remains an algorithmically ranked feed. A successful reload does not guarantee new recommendations or chronological results. Following defaults to Recent through X’s own sort dropdown after each document load. A manual switch to Popular is respected until the next reload. Drafts, dialogs, media, and already open menus defer the default selection. If the menu cannot be recognized, show a status message and do not click unrelated controls. Following remains the feed rendered by X, not a separate API approximation.
 
 ### Native controls
 

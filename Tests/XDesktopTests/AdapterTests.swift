@@ -61,6 +61,107 @@ final class AdapterTests: XCTestCase, WKScriptMessageHandler {
         _ = try await webView.evaluateJavaScript("window.__xDesktop.restoreFeed(1)", in: nil, contentWorld: WebsiteAdapter.world)
         await fulfillment(of: [e], timeout: 8)
     }
+    private let followingSortFixture = """
+        var following=document.querySelectorAll('[role=tab]')[1];
+        following.setAttribute('aria-expanded','false');
+        var sort='Popular', sortClicks=0, selectedBeforeClick=false;
+        following.addEventListener('click', () => {
+          selectedBeforeClick=following.getAttribute('aria-selected') === 'true';
+        }, true);
+        following.addEventListener('click', () => {
+          if (!selectedBeforeClick) return;
+          var existing=document.querySelector('[role=menu]');
+          if (existing) { existing.remove(); following.setAttribute('aria-expanded','false'); return; }
+          var menu=document.createElement('div'); menu.role='menu';
+          for (var name of ['Popular','Recent']) {
+            let option=document.createElement('div'); option.role='menuitem'; option.textContent=name;
+            option.setAttribute('aria-selected', String(sort === name));
+            option.addEventListener('click', () => {
+              sort=option.textContent; sortClicks++; menu.remove();
+              following.setAttribute('aria-expanded','false');
+              document.querySelector('#feed').dataset.sort=sort;
+            });
+            menu.append(option);
+          }
+          document.body.append(menu); following.setAttribute('aria-expanded','true');
+        });
+        """
+
+    func testFollowingDefaultsToRecentAfterEveryDocumentLoad() async throws {
+        try await load(); defer { close() }
+        for attempt in 0..<2 {
+            if attempt > 0 {
+                let e = expectation(description: "Reload ready"); expected = { $0.ready && $0.selected == 0 }; pending = e
+                webView.reload()
+                await fulfillment(of: [e], timeout: 15)
+            }
+            try await change(followingSortFixture + "; following.click()") {
+                $0.ready && $0.selected == 1 && $0.reason.isEmpty
+            }
+            let valueString = try await webView.evaluateJavaScript("sort") as? String
+            XCTAssertEqual(valueString, "Recent")
+            let sortClicks = try await webView.evaluateJavaScript("sortClicks") as? Int
+            XCTAssertEqual(sortClicks, 1)
+        }
+    }
+
+    func testFollowingSortRetriesAfterLateControlHydration() async throws {
+        try await load(); defer { close() }
+        let delayed = followingSortFixture + """
+            var original=following, placeholder=following.cloneNode(true);
+            following.replaceWith(placeholder);
+            setTimeout(() => placeholder.replaceWith(original), 1200);
+            """
+        try await change("choose(1); setTimeout(() => { " + delayed + " }, 700)") {
+            !$0.ready && $0.reason == "Selecting Recent for Following"
+        }
+        try await change("void 0") { $0.ready && $0.selected == 1 && $0.reason.isEmpty }
+        let sort = try await webView.evaluateJavaScript("document.querySelector('#feed').dataset.sort") as? String
+        XCTAssertEqual(sort, "Recent")
+    }
+
+    func testFollowingDefaultDoesNotOverrideLaterManualSortChoice() async throws {
+        try await load(); defer { close() }
+        try await change(followingSortFixture + "; following.click()") { $0.ready && $0.selected == 1 }
+        _ = try await webView.evaluateJavaScript("sort='Popular'; document.querySelector('#feed').dataset.sort=sort; true")
+        _ = try await webView.evaluateJavaScript("window.__xDesktop.snapshot()", in: nil, contentWorld: WebsiteAdapter.world)
+        let valueString = try await webView.evaluateJavaScript("sort") as? String
+        XCTAssertEqual(valueString, "Popular")
+        let sortClicks = try await webView.evaluateJavaScript("sortClicks") as? Int
+        XCTAssertEqual(sortClicks, 1)
+    }
+
+    func testFollowingSortWaitsForDraftAndExistingMenu() async throws {
+        try await load(); defer { close() }
+        try await change(followingSortFixture + "; fixture.draft(); following.click(); document.querySelector('[role=menu]')?.remove(); following.setAttribute('aria-expanded','false')") {
+            $0.selected == 1 && $0.draft
+        }
+        let sortClicks = try await webView.evaluateJavaScript("sortClicks") as? Int
+        XCTAssertEqual(sortClicks, 0)
+        try await change("var menu=document.createElement('div'); menu.role='menu'; menu.textContent='Unrelated'; document.body.append(menu); fixture.clearDraft()") { $0.active && !$0.draft }
+        let clicksWhileMenuOpen = try await webView.evaluateJavaScript("sortClicks") as? Int
+        XCTAssertEqual(clicksWhileMenuOpen, 0)
+        try await change("menu.remove()") { $0.ready && $0.selected == 1 && !$0.active }
+        let valueString = try await webView.evaluateJavaScript("sort") as? String
+        XCTAssertEqual(valueString, "Recent")
+    }
+
+    func testUnrecognizedFollowingSortMenuDoesNotClickUnrelatedActions() async throws {
+        try await load(); defer { close() }
+        try await change("var following=document.querySelectorAll('[role=tab]')[1]; following.setAttribute('aria-expanded','false'); following.addEventListener('click', () => { if(document.querySelector('[role=menu]')) return; var menu=document.createElement('div'); menu.role='menu'; menu.innerHTML='<button onclick=\"document.body.dataset.clicked=true\">Recent</button>'; document.body.append(menu) }); choose(1)") {
+            !$0.ready && $0.reason == "Selecting Recent for Following"
+        }
+        // Offscreen WebKit fixtures can throttle heartbeat timers. Query directly
+        // after the deadline, as the native app does before a refresh.
+        try await Task.sleep(for: .milliseconds(5500))
+        let body = try await webView.evaluateJavaScript("window.__xDesktop.snapshot()", in: nil, contentWorld: WebsiteAdapter.world)
+        let snapshot = WebsiteState.decode(body as Any)
+        XCTAssertTrue(snapshot?.ready == true)
+        XCTAssertEqual(snapshot?.reason, "Could not select Recent; use the Following sort menu")
+        let clicked = try await webView.evaluateJavaScript("document.body.dataset.clicked") as? String
+        XCTAssertNil(clicked)
+    }
+
     func testPlayingMediaProtectsEvenWithoutFocus() async throws {
         try await load(); defer { close() }
         try await change("var media = document.createElement('audio'); media.src='silence.wav'; media.muted=true; media.loop=true; document.body.append(media); media.play(); void 0") { $0.protected && $0.reason == "Auto-refresh paused while media plays" }

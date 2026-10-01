@@ -4,6 +4,9 @@
   let lastMessage = '';
   let desiredFeed = null;
   let restoreAttempted = false;
+  let followingSort = 'idle';
+  let sortDeadline = 0;
+  let sortClickedAt = 0;
   let lastActivity = -Infinity;
   let queued = false;
   const activelyWatched = new WeakSet();
@@ -13,6 +16,48 @@
   const editorSelector = '[contenteditable="true"],textarea';
   // Logged-out landing, login, signup, and account-challenge routes.
   const signInPath = /^\/(?:$|(?:login|logout|signup|account\/access)(?:\/|$)|i\/flow\/)/;
+
+  // X may reset Following to Popular on every document load. Select Recent once
+  // through its own controls, without overriding later manual choices in this document.
+  function defaultFollowingSort(tab, blocked, layers) {
+    if (followingSort === 'done' || followingSort === 'failed') return false;
+    if (followingSort === 'opening') {
+      const menu = layers && all('[role="menu"]', layers).find(visible);
+      const options = menu ? all('[role="menuitem"],[role="menuitemradio"],button', menu).filter(visible) : [];
+      const named = name => options.find(option => option.textContent.trim() === name);
+      const recent = named('Recent');
+      // Require both choices so an unrelated menu can never be acted upon.
+      if (!blocked && recent && named('Popular')) {
+        followingSort = 'done';
+        recent.click();
+        return true;
+      }
+      const now = performance.now();
+      if (now >= sortDeadline) {
+        followingSort = 'failed';
+        // Close only the menu we opened and can still identify as the sort menu.
+        if (recent && named('Popular')) tab.click();
+        return false;
+      }
+      // X can render the tab before React attaches its handlers. Retry only while
+      // the dropdown remains closed, never toggle an already opened menu shut.
+      if (!blocked && !menu && tab.getAttribute('aria-expanded') !== 'true' && now - sortClickedAt >= 500) {
+        sortClickedAt = now;
+        tab.click();
+      }
+      return true;
+    }
+    const menuOpen = layers && all('[role="menu"],[role="listbox"]', layers).some(visible);
+    if (blocked || menuOpen) return false;
+    // The dropdown may appear after the initial tab render. Check again later;
+    // layouts without a sort control keep working without opening anything.
+    if (!tab.hasAttribute('aria-expanded') && !tab.hasAttribute('aria-haspopup')) return false;
+    followingSort = 'opening';
+    sortClickedAt = performance.now();
+    sortDeadline = sortClickedAt + 5000;
+    tab.click();
+    return true;
+  }
 
   function state() {
     const fixture = location.protocol === 'file:' && location.pathname.endsWith('/home.html') ?
@@ -53,6 +98,8 @@
     }
     const restored = desiredFeed === null || selected === desiredFeed;
     if (restored) desiredFeed = null;
+    const sortingFollowing = recognized && selected === 1 && restored &&
+      defaultFollowingSort(tabs[1], typing || modal || playing, layers);
 
     // Check the container beneath the pointer and its scrolling ancestors. This also
     // prevents pulls in nested scrollable content from refreshing the outer feed.
@@ -68,7 +115,7 @@
     const scrollRoot = document.scrollingElement;
     const feedTop = !scrollRoot || scrollRoot.scrollTop <= 1;
     if (!feedTop) atTop = false;
-    return { home, recognized, ready: !!ready && restored, selected: recognized ? selected : -1,
+    return { home, recognized, ready: !!ready && restored && !sortingFollowing, selected: recognized ? selected : -1,
       atTop: atTop && inTimeline, feedTop, protected: typing || playing || modal, draft,
       failed: home && failed, otherTab,
       reason: signIn ? 'Sign in to load your feeds' :
@@ -78,7 +125,10 @@
         !home ? 'Open Home to auto-refresh' :
         otherTab ? 'Auto-refresh covers For you and Following only' :
         !recognized ? 'Waiting for the home feed' :
-        !restored ? 'Feed selection could not be restored' : failed ? 'X could not load the feed' : '',
+        !restored ? 'Feed selection could not be restored' :
+        failed ? 'X could not load the feed' :
+        sortingFollowing ? 'Selecting Recent for Following' :
+        selected === 1 && followingSort === 'failed' ? 'Could not select Recent; use the Following sort menu' : '',
       // One second outlasts the half-second heartbeat, so no input burst goes unseen.
       active: menuOpen || performance.now() - lastActivity < 1000 };
   }

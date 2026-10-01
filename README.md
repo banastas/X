@@ -7,6 +7,7 @@ Built with Swift, SwiftUI, AppKit, and WebKit. This project is independent of X 
 ## What it does
 
 - Opens X in its own resizable window, with your login and window size retained between launches.
+- Defaults Following to **Recent** after each page load, including manual and automatic reloads. You can choose Popular for the current page from X’s sort menu.
 - Reloads the selected home feed every 60 seconds after an eligible load completes. While you are scrolled down reading, it waits until you return to the top or stop interacting for two minutes.
 - Pauses automatic refresh during detected drafts, actively watched or audible media, dialogs, open menus, navigation away from Home, and whenever the window cannot be seen.
 - Adds native Home, Back/Forward, refresh, auto-refresh, and zoom controls, plus trackpad and mouse-wheel refresh gestures.
@@ -14,7 +15,7 @@ Built with Swift, SwiftUI, AppKit, and WebKit. This project is independent of X 
 
 The app displays X's website inside Apple's `WKWebView`; it does not recreate the timeline or fetch posts through the X API. There is no hosted backend, API key, or app-managed post database. You sign into your own X account, and X controls the content and recommendations you see. A reload may reset your reading position and does not guarantee new posts.
 
-**Current version: 0.2.0.** The build and 58 automated tests have passed on Apple Silicon. Core browsing and refresh behavior were checked against the live website during 0.1.x; the 0.2.0 fixes are covered by local fixture tests and have not yet been rechecked live. This is a locally built app, not an App Store or notarized release. See [verification](docs/VERIFICATION.md) for coverage and limitations.
+**Current version: 0.2.1.** See [verification](docs/VERIFICATION.md) for automated coverage and live checks of the Following sort default. Core browsing and refresh behavior were checked during 0.1.x; the other 0.2.0 fixes remain covered by local fixture tests. This is a locally built app, not an App Store or notarized release.
 
 ## Requirements
 
@@ -164,7 +165,7 @@ To uninstall, quit X and move the installed app to Trash. Removing the app does 
 
 Each installation uses its own local WebKit website data and the account signed in on that Mac. Preferences retain the automatic-refresh setting, selected feed, page zoom, and window geometry. Downloads started from the website are saved to your Downloads folder. The app's bundle identifier is `as.banast.xdesktop`; it identifies the application and does not connect users to the maintainer's X account.
 
-The app does not extract credentials, save posts to a database, add telemetry, or automate engagement. An isolated website script reports limited UI state—booleans, a feed index, and short status descriptions—to the native app. It also restores the selected feed when needed. X's website still makes its own network requests and follows X's own data practices.
+The app does not extract credentials, save posts to a database, add telemetry, or automate engagement. An isolated website script reports limited UI state—booleans, a feed index, and short status descriptions—to the native app. It also restores the selected feed and chooses Recent once per document when Following opens. If X’s sort menu cannot be recognized, the status strip explains that you need to select Recent manually. X's website still makes its own network requests and follows X's own data practices.
 
 The repository contains source, synthetic test fixtures, documentation, and icon assets. Build output and local app bundles are excluded from Git. Do not include website-data folders, cookies, credentials, or private screenshots in bug reports.
 

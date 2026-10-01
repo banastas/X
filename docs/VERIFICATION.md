@@ -1,4 +1,18 @@
-# Verification: X 0.2.0
+# Verification: X 0.2.1
+
+## Following sort default (0.2.1)
+
+On September 30, 2026, the live Following view showed the welcome empty state while the account remained signed in. Selecting Recent restored posts, but a manual page reload changed the sort back to Popular. Version 0.2.1 selects Recent once per document through X's own dropdown when Following opens. Later manual choices remain effective until the next document load.
+
+The adapter waits for late dropdown markup, retries a closed control for up to five seconds while its handlers attach, defers during drafts/media/dialogs or an already open menu, and requires both Popular and Recent options before choosing anything. An unrecognized menu reports a manual-selection status instead of clicking unrelated actions.
+
+- All **63 XCTest tests passed with zero failures** (36 desktop/WebKit and 27 core tests).
+- Five new adapter regressions cover repeated document loads, late controls and handlers, later manual sort choices, draft/menu deferral, and an unrecognized menu deadline.
+- The arm64 release build passed with warnings treated as errors, plist validation, and ad hoc signature verification.
+- Live validation on October 1, 2026 confirmed the installed release selects Recent on launch, after ⌘R, and after the 60-second automatic refresh. Following displayed posts in each case. Selection was verified by the blue checkmark beside Recent; the accessibility menu reports keyboard focus on Popular separately from the actual checked sort.
+- The installed `/Applications/X.app` passed signature verification, and its bundled adapter matched the source file. Temporary diagnostic status and experimental pointer handling were removed.
+
+## Earlier verification (0.2.0 and 0.1.x)
 
 Core browsing and refresh behavior have passed automated and live checks. The 0.2.0 changes have passed automated fixture checks only; they have not yet been rechecked against the live website. This report distinguishes tested behavior from remaining acceptance work; it does not claim full website compatibility or App Store readiness.
 
