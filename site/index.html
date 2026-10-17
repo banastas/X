@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>X for macOS — an unofficial Mac window for X</title>
+<meta name="description" content="An unofficial Mac app that keeps X's For you and Following feeds in their own window, with automatic refresh that waits while you read.">
+<!-- Unlisted: nothing links here, and nothing here is for search engines (_headers says so too). -->
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+/* The family's greys (Blit, Rune, Cue); the app icon's gold only for the Download button. */
+:root {
+  --bg: #0a0a0a;
+  --panel: #111111;
+  --border: #2b2b2b;
+  --dim: #7d7d7d;
+  --text: #c4c4c4;
+  --bright: #f0f0f0;
+  --accent: #c9a227;
+  --accent-ink: #141414;
+  --gutter: 16px;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); color-scheme: dark; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: var(--bright); text-decoration: none; border-bottom: 1px solid var(--border); }
+a:hover { border-bottom-color: var(--bright); }
+.wrap { max-width: 860px; margin: 0 auto; padding: 0 var(--gutter); }
+.label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+header { border-bottom: 1px solid var(--border); }
+header .wrap { display: flex; align-items: center; justify-content: space-between; height: 48px; }
+header strong { color: var(--bright); font-weight: 600; letter-spacing: 0.02em; }
+.hero { padding: 72px 0 56px; }
+h1 { margin: 0 0 16px; color: var(--bright); font-size: clamp(40px, 9vw, 72px); line-height: 1.02; font-weight: 700; letter-spacing: -0.02em; }
+.sub { max-width: 620px; margin: 0 0 28px; font-size: 19px; }
+.cta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+.btn { display: inline-block; padding: 12px 22px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-weight: 650; }
+.btn:hover { border: 0; filter: brightness(1.08); }
+.btn.is-soon { background: #262626; color: var(--dim); pointer-events: none; }
+.notice { margin: 28px 0 0; max-width: 620px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); font-size: 15px; }
+#whatsnew { margin: 14px 0 0; max-width: 620px; font-size: 15px; color: var(--dim); }
+section { border-top: 1px solid var(--border); padding: 48px 0; }
+h2 { margin: 0 0 20px; color: var(--bright); font-size: 22px; font-weight: 650; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.card { padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.card h3 { margin: 0 0 6px; color: var(--bright); font-size: 16px; font-weight: 650; }
+.card p { margin: 0; font-size: 15px; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 24px; margin: 0; font-size: 15px; }
+dt { color: var(--dim); }
+dd { margin: 0; }
+kbd { font: 13px ui-monospace, Menlo, monospace; padding: 1px 6px; border: 1px solid var(--border); border-radius: 5px; color: var(--bright); }
+footer { border-top: 1px solid var(--border); padding: 24px 0 48px; }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 24px; }
+@media (max-width: 520px) { dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 10px; } .hero { padding: 48px 0 40px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap"><strong>X for macOS</strong><span class="label">Unofficial</span></div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <h1>Your X feeds,<br>in their own window.</h1>
+      <p class="sub">A Mac app that keeps X's For you and Following feeds open in a dedicated window. It refreshes the feed every minute, and waits while you read, write, or watch.</p>
+      <div class="cta">
+        <a class="btn is-soon" id="download" href="#" aria-disabled="true">Download</a>
+        <span class="label" id="download-note">No release yet</span>
+      </div>
+      <p id="whatsnew" hidden></p>
+      <p class="notice">X for macOS is an independent app. It is not made, endorsed, or supported by X Corp. It shows the x.com website, and you sign in to X yourself.</p>
+    </div>
+  </div>
+
+  <section aria-labelledby="what">
+    <div class="wrap">
+      <h2 id="what">What it does</h2>
+      <div class="cards">
+        <div class="card"><h3>Refreshes, then waits</h3><p>Reloads the home feed every 60 seconds. It waits while you are scrolled down, typing a post, watching a video, or using a menu.</p></div>
+        <div class="card"><h3>Following shows Recent</h3><p>Picks Recent each time Following opens. You can turn this off in the View menu.</p></div>
+        <div class="card"><h3>Pull to refresh</h3><p>Pull down at the top of the feed with a trackpad or mouse wheel to refresh now.</p></div>
+        <div class="card"><h3>Mac controls</h3><p>Back, Forward, Home, find on page, text size, a Dock badge for notifications, and keyboard shortcuts for both feeds.</p></div>
+        <div class="card"><h3>Protects drafts</h3><p>Asks before a reload, navigation, or quit would discard a post you haven't sent.</p></div>
+        <div class="card"><h3>Collects nothing</h3><p>No account of its own, no telemetry, and no saved posts. Links to other sites open in your browser.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="details">
+    <div class="wrap">
+      <h2 id="details">Details</h2>
+      <dl>
+        <dt>Requires</dt><dd>macOS 14 Sonoma or later. Tested on Apple silicon.</dd>
+        <dt>Install</dt><dd>Unzip, move X to Applications, and open it. Sign in to X in the window.</dd>
+        <dt>Updates</dt><dd>Checks this site once a day and asks before installing. <kbd>X › Check for Updates…</kbd> checks now.</dd>
+        <dt>Signed</dt><dd id="signed">Signed with Developer ID and notarized by Apple.</dd>
+        <dt>Refresh</dt><dd><kbd>⌘R</kbd> refreshes now; <kbd>⌘P</kbd> pauses or resumes automatic refresh.</dd>
+        <dt>Feeds</dt><dd><kbd>⌥⌘1</kbd> For you, <kbd>⌥⌘2</kbd> Following.</dd>
+      </dl>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap label">
+    <span>X for macOS · © 2026 banast.as · From the maker of <a href="https://blit.banast.as/">Blit</a>, <a href="https://rune.banast.as/">Rune</a> and <a href="https://cue.banast.as/">Cue</a></span>
+    <span><a href="appcast.xml">Update feed</a> · <a href="mailto:me@banast.as">Contact</a></span>
+  </div>
+</footer>
+
+<script>
+// The current release, from the update feed scripts/release.sh writes. Before the first release the
+// button stays off: 404.html answers for the missing feed.
+fetch("appcast.xml", { cache: "no-cache" })
+  .then(r => r.ok ? r.text() : Promise.reject())
+  .then(text => {
+    const item = new DOMParser().parseFromString(text, "application/xml").querySelector("item");
+    if (!item) return;
+    const SP = "http://www.andymatuschak.org/xml-namespaces/sparkle";
+    const version = item.getElementsByTagNameNS(SP, "shortVersionString")[0]?.textContent || "?";
+    const minOS = item.getElementsByTagNameNS(SP, "minimumSystemVersion")[0]?.textContent;
+    const date = new Date(item.querySelector("pubDate")?.textContent);
+    const bytes = Number(item.querySelector("enclosure")?.getAttribute("length")) || 0;
+    const notes = new DOMParser().parseFromString(item.querySelector("description")?.textContent ?? "", "text/html").body.textContent.trim();
+    const when = isNaN(date) ? "" : date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const button = document.getElementById("download");
+    button.href = "downloads/X.zip";
+    button.setAttribute("download", "");
+    button.classList.remove("is-soon");
+    button.removeAttribute("aria-disabled");
+    document.getElementById("download-note").textContent = ["Version " + version, when,
+      bytes ? (bytes / 1e6).toFixed(1) + " MB" : "", minOS ? "macOS " + minOS.replace(/\.0$/, "") + "+" : ""].filter(Boolean).join(" · ");
+    if (notes) {
+      const whatsnew = document.getElementById("whatsnew");
+      whatsnew.textContent = "What's new: " + notes;
+      whatsnew.hidden = false;
+    }
+  })
+  .catch(() => {});
+</script>
+</body>
+</html>

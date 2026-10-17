@@ -15,4 +15,13 @@ public enum NavigationPolicy {
     public static func mayOpenExternally(_ url: URL) -> Bool {
         ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "")
     }
+    /// X serves feed images at reduced sizes. Ask its media host for the original instead.
+    public static func fullSizeImage(_ url: URL) -> URL {
+        guard url.scheme == "https", url.host?.lowercased() == "pbs.twimg.com", url.path.hasPrefix("/media/"),
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        var items = (components.queryItems ?? []).filter { $0.name != "name" }
+        items.append(URLQueryItem(name: "name", value: "orig"))
+        components.queryItems = items
+        return components.url ?? url
+    }
 }

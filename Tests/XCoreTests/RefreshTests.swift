@@ -200,3 +200,43 @@ final class NavigationTests: XCTestCase {
         XCTAssertFalse(NavigationPolicy.mayOpenExternally(URL(string: "javascript:alert(1)")!))
     }
 }
+
+final class PageTitleTests: XCTestCase {
+    func testUnreadCountBecomesBadgeAndIsStrippedFromTitle() {
+        XCTAssertEqual(PageTitle.badge("(3) Home / X"), "3")
+        XCTAssertEqual(PageTitle.badge("(20+) Home / X"), "20+")
+        XCTAssertNil(PageTitle.badge("Home / X"))
+        XCTAssertNil(PageTitle.badge("(0) Home / X"))
+        XCTAssertNil(PageTitle.badge("Home (3) / X"), "Only a leading count is X's badge")
+        XCTAssertNil(PageTitle.badge(nil))
+        XCTAssertEqual(PageTitle.text("(3) Home / X"), "Home / X")
+        XCTAssertEqual(PageTitle.text("Home / X"), "Home / X")
+        XCTAssertEqual(PageTitle.text(""), "X")
+        XCTAssertEqual(PageTitle.text(nil), "X")
+    }
+
+    func testFeedImagesUpgradeToOriginalSizeOnly() {
+        let small = URL(string: "https://pbs.twimg.com/media/ABC123?format=jpg&name=small")!
+        XCTAssertEqual(NavigationPolicy.fullSizeImage(small).absoluteString, "https://pbs.twimg.com/media/ABC123?format=jpg&name=orig")
+        let bare = URL(string: "https://pbs.twimg.com/media/ABC123.jpg")!
+        XCTAssertEqual(NavigationPolicy.fullSizeImage(bare).absoluteString, "https://pbs.twimg.com/media/ABC123.jpg?name=orig")
+        for value in ["https://pbs.twimg.com/profile_images/1/a_normal.jpg?name=small", "https://example.com/media/a?name=small"] {
+            XCTAssertEqual(NavigationPolicy.fullSizeImage(URL(string: value)!).absoluteString, value)
+        }
+    }
+}
+
+final class UpdatePolicyTests: XCTestCase {
+    private let feed = "https://x.banast.as/appcast.xml"
+
+    func testOnlyPublishedBuildsInApplicationsUpdate() {
+        XCTAssertTrue(UpdatePolicy.runsUpdater(bundlePath: "/Applications/X.app", feedURL: feed, homeDirectory: "/Users/a"))
+        XCTAssertTrue(UpdatePolicy.runsUpdater(bundlePath: "/Users/a/Applications/X.app", feedURL: feed, homeDirectory: "/Users/a/"))
+        XCTAssertFalse(UpdatePolicy.runsUpdater(bundlePath: "/Applications/X.app", feedURL: nil, homeDirectory: "/Users/a"),
+                       "A copy built from source has no feed")
+        XCTAssertFalse(UpdatePolicy.runsUpdater(bundlePath: "/Applications/X.app", feedURL: "http://x.banast.as/appcast.xml", homeDirectory: "/Users/a"))
+        for path in ["/Users/a/Developer/X/dist/X.app", "/Applications Old/X.app", "/Users/b/Applications/X.app"] {
+            XCTAssertFalse(UpdatePolicy.runsUpdater(bundlePath: path, feedURL: feed, homeDirectory: "/Users/a"), path)
+        }
+    }
+}

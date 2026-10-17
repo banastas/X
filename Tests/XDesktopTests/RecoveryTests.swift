@@ -150,6 +150,68 @@ final class RecoveryTests: XCTestCase {
         }
     }
 
+    func testLateTabHydrationStillRestoresTheSavedFeed() async throws {
+        let target = try temporaryFolder().appendingPathComponent("home.html")
+        let html = try String(contentsOf: fixture, encoding: .utf8).replacingOccurrences(
+            of: "tabs.forEach((tab, index) => tab.addEventListener('click', () => choose(index))); choose(0);",
+            with: "const hydratedAt = Date.now() + 1500; tabs.forEach((tab, index) => tab.addEventListener('click', () => { if (Date.now() >= hydratedAt) choose(index); })); choose(0);")
+        XCTAssertTrue(html.contains("hydratedAt"))
+        try html.write(to: target, atomically: true, encoding: .utf8)
+        try await withModel(target, attached: true, configure: { $0.loadTimeout = 8 }) { model, defaults in
+            defaults.set(1, forKey: "selectedFeed")
+            model.home()
+            try await waitUntil { !model.loading && model.page.ready && model.page.selected == 1 }
+            XCTAssertNil(model.errorMessage)
+            XCTAssertEqual(defaults.object(forKey: "selectedFeed") as? Int, 1)
+        }
+    }
+
+    func testStopEndsAStalledLoadWithoutAnError() async throws {
+        let target = try temporaryFolder().appendingPathComponent("home.html")
+        try "<!doctype html><html data-x-desktop-fixture=\"true\"><main data-testid=\"primaryColumn\"></main></html>"
+            .write(to: target, atomically: true, encoding: .utf8)
+        try await withModel(target, attached: true) { model, _ in
+            try await waitUntil { model.loading && model.hasContent }
+            model.stop()
+            XCTAssertFalse(model.loading)
+            XCTAssertFalse(model.schedule.loading)
+            XCTAssertNil(model.errorMessage)
+        }
+    }
+
+    func testCountdownAppearsOnlyWhileAutomaticRefreshCounts() async throws {
+        try await withModel(attached: true) { model, _ in
+            try await waitUntil { !model.loading && model.page.ready }
+            XCTAssertNil(model.nextRefresh, "Paused auto-refresh has nothing to count down")
+            model.toggleAutomatic()
+            try await waitUntil { model.nextRefresh != nil }
+            let remaining = model.nextRefresh!.timeIntervalSinceNow
+            XCTAssertTrue((50...61).contains(remaining), "\(remaining)")
+            model.toggleAutomatic()
+            try await waitUntil { model.nextRefresh == nil }
+        }
+    }
+
+    func testUnsupportedLinkSchemeExplainsItself() async throws {
+        try await withModel { model, _ in
+            try await waitUntil { !model.loading && model.page.ready }
+            _ = try await model.webView.evaluateJavaScript("var a=document.createElement('a'); a.href='tel:5551234'; document.body.append(a); a.click(); true")
+            try await waitUntil { model.notice != nil }
+            XCTAssertEqual(model.status, "This app can't open tel: links.")
+        }
+    }
+
+    func testFollowingRecentPreferencePersists() async throws {
+        try await withModel { model, defaults in
+            XCTAssertTrue(model.followingRecent)
+            model.toggleFollowingRecent()
+            XCTAssertFalse(model.followingRecent)
+            let reopened = BrowserModel(defaults: defaults, fixtureURL: fixture)
+            XCTAssertFalse(reopened.followingRecent)
+            reopened.shutdown()
+        }
+    }
+
     func testIdleModelDoesNotInvalidateTheInterface() async throws {
         try await withModel(attached: true) { model, _ in
             try await waitUntil { !model.loading && model.page.ready }

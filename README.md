@@ -7,15 +7,16 @@ Built with Swift, SwiftUI, AppKit, and WebKit. This project is independent of X 
 ## What it does
 
 - Opens X in its own resizable window, with your login and window size retained between launches.
-- Defaults Following to **Recent** after each page load, including manual and automatic reloads. You can choose Popular for the current page from X’s sort menu.
+- Defaults Following to **Recent** after each page load, including manual and automatic reloads. You can choose Popular for the current page from X’s sort menu, or turn the default off with **View → Default Following to Recent**.
 - Reloads the selected home feed every 60 seconds after an eligible load completes. While you are scrolled down reading, it waits until you return to the top or stop interacting for two minutes.
 - Pauses automatic refresh during detected drafts, actively watched or audible media, dialogs, open menus, navigation away from Home, and whenever the window cannot be seen.
-- Adds native Home, Back/Forward, refresh, auto-refresh, and zoom controls, plus trackpad and mouse-wheel refresh gestures.
-- Opens external article links in your default browser and saves downloads to your Downloads folder.
+- Adds native Home, Back/Forward, refresh/stop, auto-refresh, find-in-page, and zoom controls, plus trackpad and mouse-wheel refresh gestures.
+- Shows X's unread notification count on the Dock icon.
+- Opens external article links in your default browser and saves downloads, including images saved from the context menu, to your Downloads folder.
 
 The app displays X's website inside Apple's `WKWebView`; it does not recreate the timeline or fetch posts through the X API. There is no hosted backend, API key, or app-managed post database. You sign into your own X account, and X controls the content and recommendations you see. A reload may reset your reading position and does not guarantee new posts.
 
-**Current version: 0.2.1.** See [verification](docs/VERIFICATION.md) for automated coverage and live checks of the Following sort default. Core browsing and refresh behavior were checked during 0.1.x; the other 0.2.0 fixes remain covered by local fixture tests. This is a locally built app, not an App Store or notarized release.
+**Current version: 0.2.1.** See [verification](docs/VERIFICATION.md) for automated coverage and live checks of the Following sort default. Core browsing and refresh behavior were checked during 0.1.x; the other 0.2.0 fixes remain covered by local fixture tests. Copies you build from source are ad hoc signed and never update themselves. Published builds, once a release is out, are signed with Developer ID, notarized, and offered at [x.banast.as](https://x.banast.as) (see [Published builds and updates](#published-builds-and-updates)). There is no App Store release.
 
 ## Requirements
 
@@ -24,7 +25,7 @@ The app displays X's website inside Apple's `WKWebView`; it does not recreate th
 - An internet connection and your own X account for the signed-in feeds.
 - Terminal for the build steps below. Git and the other required build tools are supplied by Xcode.
 
-There are no external Swift package dependencies. Node.js, Python, Homebrew, an X developer account, and a paid Apple Developer membership are not required for this local build.
+The one external Swift package is [Sparkle](https://sparkle-project.org) 2.10.0, which SwiftPM fetches on the first build (pinned in `Package.resolved`); it is bundled for published builds' updates and stays inactive in source builds. Node.js, Python, Homebrew, an X developer account, and a paid Apple Developer membership are not required for this local build.
 
 ## Set up your own copy
 
@@ -108,10 +109,16 @@ You do not need to keep Terminal open. Keep the source folder if you want to bui
 | Action | Control |
 | --- | --- |
 | Switch feed | X's own For you / Following tabs |
+| For you / Following | `Option-Command-1` / `Option-Command-2` (loads Home first if needed) |
 | Refresh now | Toolbar refresh or `Command-R` |
+| Stop a slow load | Toolbar stop (shown while loading) or `Command-.` |
 | Pause/resume automatic refresh | Toolbar timer button (filled when on) or `Command-P` |
 | Home | Toolbar home or `Command-1` |
-| Back / Forward | Toolbar back, trackpad swipe, `Command-[` / `Command-]` |
+| Back / Forward | Toolbar back/forward, trackpad swipe, `Command-[` / `Command-]` |
+| Find on page | `Command-F`, then `Command-G` / `Shift-Command-G`; `Escape` closes |
+| Copy or open the current page | **File → Copy Link** (`Shift-Command-C`) or **Open in Browser** (`Shift-Command-O`) |
+| Save an image | Control-click it, then **Save Image to Downloads** (original size for X media) |
+| Following sort default | **View → Default Following to Recent** |
 | Text size | `Command-+`, `Command-−`, `Command-0` (remembered between launches) |
 | Full screen | `Control-Command-F` |
 | Reopen a closed window | Click the Dock icon, or **Window → Show Main Window** |
@@ -122,13 +129,17 @@ For mouse wheels, a pause of roughly half a second releases an armed pull. Both 
 
 Manual and pull refresh still work while automatic refresh is paused, and they do not turn it back on. Only one reload can be in flight at a time.
 
-The thin status strip at the bottom explains what the app is doing and when the page last refreshed. Automatic refresh waits during detected drafts, focused composers, dialogs, open menus, actively watched or audible media, and non-Home navigation. It also suspends while the app is hidden, the window is minimized, closed, on another Space, or fully covered, and while the screen is locked or asleep. A visible window can continue refreshing while another app has focus.
+The thin status strip at the bottom explains what the app is doing and when the page last refreshed. While a refresh is simply counting down, it shows the seconds remaining; “Refreshing once you pause” means it is due but waiting for scrolling, pointer movement, or typing to stop. Automatic refresh waits during detected drafts, focused composers, dialogs, open menus, actively watched or audible media, and non-Home navigation. It also suspends while the app is hidden, the window is minimized, closed, on another Space, or fully covered, and while the screen is locked or asleep. A visible window can continue refreshing while another app has focus.
 
 Direct input in the page (scrolling, pointer movement, clicks, and keys) delays an overdue refresh until at least five seconds after it stops. While you are scrolled down the feed, a due refresh waits until you scroll back to the top or leave the page untouched for two minutes, so it does not replace what you are reading.
 
 Muted autoplay previews alone do not pause refresh. Explicit playback, unmuting, full-screen video, and playing audio do. Closing the window pauses playing media. Reload, Home, Back, Forward, opening an X link meant for a new window, and quitting ask before discarding a detected unsent post, and trackpad swipe navigation is disabled while one exists. Pull-to-refresh is disabled during protected activity.
 
-If a load fails or stalls, the app retries after about 2, 4, and then 5 minutes while automatic refresh is on and the window is visible. If X's feed layout is not recognized, it stops and waits for you instead. A web-process crash reloads once automatically; a second crash within five minutes waits for **Retry**. When the page tries to redirect to another site without a click, the status strip offers **Open in Browser** instead of following it.
+If a load fails or stalls, the app retries after about 2, 4, and then 5 minutes while automatic refresh is on and the window is visible. A load that failed for lack of a network connection retries as soon as the connection returns. If nothing has loaded yet, the window shows the problem and a **Try Again** button instead of a blank page. If X's feed layout is not recognized, it stops and waits for you instead. A web-process crash reloads once automatically; a second crash within five minutes waits for **Retry**. When the page tries to redirect to another site without a click, the status strip offers **Open in Browser** instead of following it. Clicked links the app cannot open, such as `tel:`, say so in the status strip.
+
+The Recent default looks for X's English “Recent” and “Popular” options. If X shows them in another language or renames them, the app closes the menu it opened and the status strip asks you to choose manually; you can also turn the default off.
+
+Confirmation questions, such as discarding a draft, appear as sheets on the window.
 
 ## Update an installed copy
 
@@ -142,7 +153,15 @@ scripts/build-app.sh
 
 If any step fails, stop and resolve it before replacing the installed app. Copy the new `dist/X.app` over your previous build in Finder, then open the installed copy. With the same bundle identifier, replacing the app normally preserves preferences and WebKit website data; X can still expire your login independently.
 
-If you have local source changes and Git refuses the update, review and preserve them before retrying. There is no automatic updater.
+If you have local source changes and Git refuses the update, review and preserve them before retrying. A copy you build from source has no automatic updater.
+
+## Published builds and updates
+
+Published builds come from [x.banast.as](https://x.banast.as), an unlisted page. Download the zip, unzip it, and move `X.app` to Applications (`/Applications` or your home folder's Applications). It uses the same bundle identifier as source builds, so it keeps your sign-in and preferences.
+
+A published copy in Applications checks `https://x.banast.as/appcast.xml` once a day and asks before installing an update. **X → Check for Updates…** checks now, and **X → Check for Updates Automatically** turns the daily check off. Updates use [Sparkle](https://sparkle-project.org): each download must carry an EdDSA signature from the maintainer's key, and the app must be signed by the same Developer ID team. Quitting to install still asks first if you have an unsent post.
+
+Debug builds, and any copy built with `scripts/build-app.sh`, carry no update feed and never show those menu items.
 
 To uninstall, quit X and move the installed app to Trash. Removing the app does not automatically erase its saved preferences or website data. Use X's own sign-out control first if you want to end the current login.
 
@@ -156,6 +175,7 @@ To uninstall, quit X and move the installed app to Trash. Removing the app does 
 | WebKit tests cannot load fixtures | Run the tests in a logged-in macOS desktop session with full Xcode selected. The tests are not validated for headless environments. |
 | The website adapter is missing | Rebuild with `scripts/build-app.sh` and launch `dist/X.app`. Copy the entire app bundle when installing. |
 | Reopening still shows an older build | Quit every running copy and open the one you replaced. Check **X → About X** for the version. |
+| Following isn't switched to Recent | Check that **View → Default Following to Recent** is on. If the status strip says it could not select Recent, X's sort menu wasn't recognized (for example, in another interface language); choose Recent from X's sort menu. |
 | Automatic refresh appears stuck | Read the status strip. Return to Home, select For you or Following, scroll back to the top, and finish or close any composer, dialog, menu, or active media. Resume the timer if it is paused. Pinned list tabs are not auto-refreshed. |
 | Pull-to-refresh does nothing | Put the pointer over the timeline, reach its top, and begin a new pull after a short pause. Protected activity also disables the gesture. Toolbar refresh remains available. |
 | Google or Apple sign-in does not complete | Embedded-browser login can be restricted by the provider. When the sign-in window returns to X, the app closes it and reloads Home in the main window. The full OAuth flows have not been acceptance-tested; use X's direct sign-in flow if available. |
@@ -163,9 +183,9 @@ To uninstall, quit X and move the installed app to Trash. Removing the app does 
 
 ## Storage and privacy
 
-Each installation uses its own local WebKit website data and the account signed in on that Mac. Preferences retain the automatic-refresh setting, selected feed, page zoom, and window geometry. Downloads started from the website are saved to your Downloads folder. The app's bundle identifier is `as.banast.xdesktop`; it identifies the application and does not connect users to the maintainer's X account.
+Each installation uses its own local WebKit website data and the account signed in on that Mac. Preferences retain the automatic-refresh setting, the Following sort default, selected feed, page zoom, and window geometry. Downloads started from the website are saved to your Downloads folder. The app's bundle identifier is `as.banast.xdesktop`; it identifies the application and does not connect users to the maintainer's X account.
 
-The app does not extract credentials, save posts to a database, add telemetry, or automate engagement. An isolated website script reports limited UI state—booleans, a feed index, and short status descriptions—to the native app. It also restores the selected feed and chooses Recent once per document when Following opens. If X’s sort menu cannot be recognized, the status strip explains that you need to select Recent manually. X's website still makes its own network requests and follows X's own data practices.
+The app does not extract credentials, save posts to a database, add telemetry, or automate engagement. Published builds make one request of their own: a daily fetch of the update feed from x.banast.as, without Sparkle's optional system profile. An isolated website script reports limited UI state—booleans, a feed index, and short status descriptions—to the native app. It also restores the selected feed, chooses Recent once per document when Following opens (unless you turn that off), and, when you choose **Save Image to Downloads**, returns the address of the image under the pointer. The Dock badge and window title come from the page title that WebKit already exposes to the app. If X’s sort menu cannot be recognized, the status strip explains that you need to select Recent manually. X's website still makes its own network requests and follows X's own data practices.
 
 The repository contains source, synthetic test fixtures, documentation, and icon assets. Build output and local app bundles are excluded from Git. Do not include website-data folders, cookies, credentials, or private screenshots in bug reports.
 
@@ -195,7 +215,19 @@ plutil -lint dist/X.app/Contents/Info.plist
 git diff --check
 ```
 
-The packaging script already treats compiler warnings as errors and verifies the generated signature. Tests cover refresh scheduling, gestures, URL handling, the real WebKit adapter with local fixtures, and browser-model reload behavior.
+The packaging script already treats compiler warnings as errors, bundles Sparkle in `Contents/Frameworks`, and verifies the generated signature.
+
+### Releasing (maintainer)
+
+`scripts/release.sh` makes a published build: it runs the tests, builds with a Developer ID Application certificate for the team (hardened runtime, `Resources/X.entitlements`), adds the update feed and public key to Info.plist, notarizes with the `blit-notary` Keychain profile, staples, and zips into `dist/release/`. It numbers each build by the time (YYYYMMDDHHMM). The comments at the top of the script list the one-time setup: the certificate, the notary profile, the Sparkle key and the Cloudflare Pages project.
+
+```sh
+scripts/release.sh                                                    # build, notarize, staple
+INSTALL=1 scripts/release.sh                                          # …and replace /Applications/X.app
+PUBLISH=1 INSTALL=1 VERSION=0.3.0 NOTES="What changed" scripts/release.sh   # …and publish it
+```
+
+`PUBLISH=1` runs only on a clean `main`. It signs the zip with the family's Sparkle key (the same as Blit, Rune and Cue), writes `site/appcast.xml` and `site/downloads/`, commits them and pushes `main`; Cloudflare Pages then serves `site/` at x.banast.as. Publishing makes the download public. See [site/README.md](site/README.md) for hosting. Tests cover refresh scheduling, gestures, URL handling, the real WebKit adapter with local fixtures, and browser-model reload behavior.
 
 | Path | Purpose |
 | --- | --- |
@@ -204,6 +236,8 @@ The packaging script already treats compiler warnings as errors and verifies the
 | `Tests` | Deterministic tests and WebKit fixture checks |
 | `Resources` | App metadata and [icon provenance](Resources/ICON-SOURCE.md) |
 | `scripts/build-app.sh` | Local app packaging and signature verification |
+| `scripts/release.sh` | Developer ID build, notarization, and publishing an update |
+| `site` | The x.banast.as page, update feed, and current download |
 | `docs/SPEC.md` | Product behavior and acceptance criteria |
 | `docs/VERIFICATION.md` | Tested behavior and remaining acceptance work |
 
