@@ -2,18 +2,29 @@
   'use strict';
   if (window.__xDesktop) return;
   let lastMessage = '';
+  // Native preferences, installed by a separate document-start script in this world.
+  const options = Object.assign({ followingRecent: true }, window.__xDesktopOptions);
   let desiredFeed = null;
-  let restoreAttempted = false;
+  let restoreClickedAt = -Infinity;
+  let restoreDeadline = 0;
+  let restoreFailed = false;
+  // The reader picked For you or Following in this document; that choice outranks restoration.
+  let feedChosen = false;
   let followingSort = 'idle';
+  let sortStartedAt = 0;
   let sortDeadline = 0;
   let sortClickedAt = 0;
   let lastActivity = -Infinity;
+  let lastPress = -Infinity;
+  let foreground = true;
   let queued = false;
   const activelyWatched = new WeakSet();
   let pointer = { x: innerWidth / 2, y: innerHeight / 2 };
   const visible = element => !!element && element.getClientRects().length > 0;
   const all = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const editorSelector = '[contenteditable="true"],textarea';
+  const menuSelector = '[role="menu"],[role="listbox"]';
+  const mainColumn = () => document.querySelector('[data-testid="primaryColumn"]') || document.querySelector('main');
   // Logged-out landing, login, signup, and account-challenge routes.
   const signInPath = /^\/(?:$|(?:login|logout|signup|account\/access)(?:\/|$)|i\/flow\/)/;
 
@@ -22,7 +33,7 @@
   function defaultFollowingSort(tab, blocked, layers) {
     if (followingSort === 'done' || followingSort === 'failed') return false;
     if (followingSort === 'opening') {
-      const menu = layers && all('[role="menu"]', layers).find(visible);
+      const menu = layers && all(menuSelector, layers).find(visible);
       const options = menu ? all('[role="menuitem"],[role="menuitemradio"],button', menu).filter(visible) : [];
       const named = name => options.find(option => option.textContent.trim() === name);
       const recent = named('Recent');
@@ -35,8 +46,14 @@
       const now = performance.now();
       if (now >= sortDeadline) {
         followingSort = 'failed';
-        // Close only the menu we opened and can still identify as the sort menu.
+        // A recognized sort menu is ours to close. An unrecognized one (another language,
+        // renamed options) opened after our click, so close it too unless the reader has
+        // pressed something since: an open menu would otherwise hold refresh back indefinitely.
         if (recent && named('Popular')) tab.click();
+        else if (menu && lastPress < sortStartedAt) {
+          if (tab.getAttribute('aria-expanded') === 'true') tab.click();
+          else menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+        }
         return false;
       }
       // X can render the tab before React attaches its handlers. Retry only while
@@ -47,13 +64,14 @@
       }
       return true;
     }
-    const menuOpen = layers && all('[role="menu"],[role="listbox"]', layers).some(visible);
+    if (!options.followingRecent) return false;
+    const menuOpen = layers && all(menuSelector, layers).some(visible);
     if (blocked || menuOpen) return false;
     // The dropdown may appear after the initial tab render. Check again later;
     // layouts without a sort control keep working without opening anything.
     if (!tab.hasAttribute('aria-expanded') && !tab.hasAttribute('aria-haspopup')) return false;
     followingSort = 'opening';
-    sortClickedAt = performance.now();
+    sortStartedAt = sortClickedAt = performance.now();
     sortDeadline = sortClickedAt + 5000;
     tab.click();
     return true;
@@ -64,7 +82,7 @@
       document.documentElement.dataset.xDesktopFixture : undefined;
     const home = location.pathname === '/home' || fixture === 'true';
     const signIn = (location.protocol === 'https:' && signInPath.test(location.pathname)) || fixture === 'signin';
-    const main = document.querySelector('[data-testid="primaryColumn"]') || document.querySelector('main');
+    const main = mainColumn();
     const feedTabs = main?.querySelector('[role="tablist"]');
     const tabs = feedTabs ? all('[role="tab"]', feedTabs).filter(visible) : [];
     const selected = tabs.findIndex(tab => tab.getAttribute('aria-selected') === 'true');
@@ -74,7 +92,7 @@
     const modal = all('[role="dialog"],[aria-modal="true"]').some(visible);
     // X renders popover menus into #layers; an open one means the reader is mid-action.
     const layers = document.getElementById('layers') || (fixture === undefined ? null : document);
-    const menuOpen = !!layers && all('[role="menu"],[role="listbox"]', layers).some(visible);
+    const menuOpen = !!layers && all(menuSelector, layers).some(visible);
     const editorFocused = document.activeElement?.matches(editorSelector) || false;
     const draftText = all(editorSelector).some(element => visible(element) &&
       ((element.value || element.textContent || '').trim().length > 0));
@@ -91,10 +109,18 @@
     const contentLoaded = main && !!main.querySelector('article,[data-testid="emptyState"]');
     const ready = recognized && (contentLoaded || !busy) && !failed;
 
-    if (recognized && desiredFeed !== null && desiredFeed !== selected && !restoreAttempted && !typing && !modal) {
-      restoreAttempted = true;
-      tabs[desiredFeed]?.click();
-      return null;
+    if (recognized && desiredFeed !== null && desiredFeed !== selected) {
+      const now = performance.now();
+      if (now >= restoreDeadline) {
+        desiredFeed = null;
+        restoreFailed = true;
+      } else if (!typing && !modal && now - restoreClickedAt >= 500) {
+        // X can render tabs before React attaches their handlers, so keep trying
+        // until the click takes or the deadline passes.
+        restoreClickedAt = now;
+        tabs[desiredFeed]?.click();
+        return null;
+      }
     }
     const restored = desiredFeed === null || selected === desiredFeed;
     if (restored) desiredFeed = null;
@@ -117,7 +143,7 @@
     if (!feedTop) atTop = false;
     return { home, recognized, ready: !!ready && restored && !sortingFollowing, selected: recognized ? selected : -1,
       atTop: atTop && inTimeline, feedTop, protected: typing || playing || modal, draft,
-      failed: home && failed, otherTab,
+      failed: home && failed, otherTab, feedChosen, restoreFailed,
       reason: signIn ? 'Sign in to load your feeds' :
         typing ? 'Auto-refresh paused while composing' :
         playing ? 'Auto-refresh paused while media plays' :
@@ -125,10 +151,11 @@
         !home ? 'Open Home to auto-refresh' :
         otherTab ? 'Auto-refresh covers For you and Following only' :
         !recognized ? 'Waiting for the home feed' :
-        !restored ? 'Feed selection could not be restored' :
+        !restored ? 'Restoring your last feed' :
         failed ? 'X could not load the feed' :
         sortingFollowing ? 'Selecting Recent for Following' :
-        selected === 1 && followingSort === 'failed' ? 'Could not select Recent; use the Following sort menu' : '',
+        selected === 1 && followingSort === 'failed' ? 'Could not select Recent; use the Following sort menu' :
+        restoreFailed ? 'Could not restore your last feed' : '',
       // One second outlasts the half-second heartbeat, so no input burst goes unseen.
       active: menuOpen || performance.now() - lastActivity < 1000 };
   }
@@ -154,7 +181,36 @@
     snapshot() { return state(); },
     // Native navigation bookkeeping resets its copy, so always resend.
     refreshState() { lastMessage = ''; publish(); },
-    restoreFeed(index) { if (index === 0 || index === 1) { desiredFeed = index; restoreAttempted = false; publish(); } },
+    restoreFeed(index) {
+      if (index !== 0 && index !== 1) return;
+      desiredFeed = index;
+      restoreClickedAt = -Infinity;
+      restoreDeadline = performance.now() + 10000;
+      restoreFailed = false;
+      feedChosen = false;
+      publish();
+    },
+    // A menu command chose this feed, which counts as the reader's own choice.
+    selectFeed(index) {
+      const list = mainColumn()?.querySelector('[role="tablist"]');
+      const tabs = list ? all('[role="tab"]', list).filter(visible) : [];
+      if ((index !== 0 && index !== 1) || !tabs[index]) return false;
+      desiredFeed = null; restoreFailed = false; feedChosen = true;
+      tabs[index].click();
+      soon();
+      return true;
+    },
+    setOptions(value) { Object.assign(options, value); soon(); },
+    // The native window cannot be seen, so the heartbeat can slow down.
+    setForeground(value) { foreground = !!value; if (foreground) soon(); },
+    // The https image beneath a context-menu click, in CSS pixels.
+    imageAt(x, y) {
+      for (const element of document.elementsFromPoint(x, y)) {
+        const source = element instanceof HTMLImageElement ? element.currentSrc || element.src : '';
+        if (/^https:\/\//.test(source)) return source;
+      }
+      return null;
+    },
     pauseMedia() { all('video,audio').forEach(element => element.pause()); }
   };
   const touch = () => { lastActivity = performance.now(); };
@@ -169,11 +225,22 @@
     const media = container.matches('video,audio') ? [container] : all('video,audio', container);
     media.forEach(element => activelyWatched.add(element));
   };
-  document.addEventListener('pointerdown', event => { markWatching(event); touch(); soon(); }, true);
+  const press = event => { if (event.isTrusted) lastPress = performance.now(); };
+  document.addEventListener('pointerdown', event => { press(event); markWatching(event); touch(); soon(); }, true);
   document.addEventListener('keydown', event => {
+    press(event);
     if (event.key === ' ' || event.key === 'Enter') markWatching(event);
     touch(); soon();
   }, true);
+  // Only a real click or key press on a feed tab counts as the reader choosing a feed.
+  document.addEventListener('click', event => {
+    if (!event.isTrusted || !(event.target instanceof Element)) return;
+    const tab = event.target.closest('[role="tab"]');
+    if (tab && mainColumn()?.querySelector('[role="tablist"]')?.contains(tab)) {
+      feedChosen = true; desiredFeed = null; restoreFailed = false; soon();
+    }
+  }, true);
+  document.addEventListener('visibilitychange', soon);
   document.addEventListener('pointermove', event => {
     // WebKit repeats moves at a resting pointer when content shifts beneath it; only real motion counts.
     if (event.clientX === pointer.x && event.clientY === pointer.y) return;
@@ -184,6 +251,8 @@
   document.addEventListener('scroll', () => { touch(); soon(); }, { passive: true, capture: true });
   document.addEventListener('selectionchange', touch);
   // A small heartbeat catches SPA route changes and playback/scroll state transitions.
-  setInterval(publish, 500);
+  // While the native window cannot be seen, check only every five seconds.
+  let beats = 0;
+  setInterval(() => { if (foreground || ++beats % 10 === 0) publish(); }, 500);
   publish();
 })();

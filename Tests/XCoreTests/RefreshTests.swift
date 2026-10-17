@@ -200,3 +200,28 @@ final class NavigationTests: XCTestCase {
         XCTAssertFalse(NavigationPolicy.mayOpenExternally(URL(string: "javascript:alert(1)")!))
     }
 }
+
+final class PageTitleTests: XCTestCase {
+    func testUnreadCountBecomesBadgeAndIsStrippedFromTitle() {
+        XCTAssertEqual(PageTitle.badge("(3) Home / X"), "3")
+        XCTAssertEqual(PageTitle.badge("(20+) Home / X"), "20+")
+        XCTAssertNil(PageTitle.badge("Home / X"))
+        XCTAssertNil(PageTitle.badge("(0) Home / X"))
+        XCTAssertNil(PageTitle.badge("Home (3) / X"), "Only a leading count is X's badge")
+        XCTAssertNil(PageTitle.badge(nil))
+        XCTAssertEqual(PageTitle.text("(3) Home / X"), "Home / X")
+        XCTAssertEqual(PageTitle.text("Home / X"), "Home / X")
+        XCTAssertEqual(PageTitle.text(""), "X")
+        XCTAssertEqual(PageTitle.text(nil), "X")
+    }
+
+    func testFeedImagesUpgradeToOriginalSizeOnly() {
+        let small = URL(string: "https://pbs.twimg.com/media/ABC123?format=jpg&name=small")!
+        XCTAssertEqual(NavigationPolicy.fullSizeImage(small).absoluteString, "https://pbs.twimg.com/media/ABC123?format=jpg&name=orig")
+        let bare = URL(string: "https://pbs.twimg.com/media/ABC123.jpg")!
+        XCTAssertEqual(NavigationPolicy.fullSizeImage(bare).absoluteString, "https://pbs.twimg.com/media/ABC123.jpg?name=orig")
+        for value in ["https://pbs.twimg.com/profile_images/1/a_normal.jpg?name=small", "https://example.com/media/a?name=small"] {
+            XCTAssertEqual(NavigationPolicy.fullSizeImage(URL(string: value)!).absoluteString, value)
+        }
+    }
+}

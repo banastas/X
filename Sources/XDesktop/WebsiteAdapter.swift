@@ -17,13 +17,17 @@ struct WebsiteState: Decodable, Equatable {
     var failed: Bool
     /// Home is showing a pinned tab rather than For you or Following.
     var otherTab: Bool
+    /// The reader picked a feed tab in this document, which outranks restoring the saved one.
+    var feedChosen: Bool
+    /// The saved feed could not be selected before the adapter's deadline.
+    var restoreFailed: Bool
     var reason: String
     /// Recent direct input or an open popover menu.
     var active: Bool
 
     static let empty = WebsiteState(home: false, recognized: false, ready: false, selected: -1, atTop: false,
                                     feedTop: true, protected: false, draft: false, failed: false, otherTab: false,
-                                    reason: "Waiting for X", active: false)
+                                    feedChosen: false, restoreFailed: false, reason: "Waiting for X", active: false)
     static func decode(_ body: Any) -> WebsiteState? {
         guard JSONSerialization.isValidJSONObject(body),
               let data = try? JSONSerialization.data(withJSONObject: body), data.count < 2048,
@@ -49,15 +53,29 @@ enum WebsiteAdapter {
 }
 
 /// WebKit's context-menu downloads require private delegate API. Hide those items
-/// rather than offer commands that silently do nothing.
+/// rather than offer commands that silently do nothing, and replace Download Image
+/// with a public-API equivalent that saves the image beneath the click.
 final class XWebView: WKWebView {
+    private static let downloadImage = "WKMenuItemIdentifierDownloadImage"
     private static let unsupported: Set<String> = [
-        "WKMenuItemIdentifierDownloadImage", "WKMenuItemIdentifierDownloadLinkedFile", "WKMenuItemIdentifierDownloadMedia"
+        downloadImage, "WKMenuItemIdentifierDownloadLinkedFile", "WKMenuItemIdentifierDownloadMedia"
     ]
+    /// Starts a download of an image URL found beneath a context-menu click.
+    var saveImage: ((URL) -> Void)?
+    private var menuPoint: CGPoint?
 
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
-        for item in menu.items where Self.unsupported.contains(item.identifier?.rawValue ?? "") {
-            menu.removeItem(item)
+        // The adapter hit-tests in CSS pixels from the top left of the page.
+        let local = convert(event.locationInWindow, from: nil)
+        let top = isFlipped ? local.y : bounds.height - local.y
+        menuPoint = CGPoint(x: local.x / pageZoom, y: top / pageZoom)
+        for (index, item) in menu.items.enumerated().reversed() where Self.unsupported.contains(item.identifier?.rawValue ?? "") {
+            menu.removeItem(at: index)
+            if item.identifier?.rawValue == Self.downloadImage, saveImage != nil {
+                let save = NSMenuItem(title: "Save Image to Downloads", action: #selector(saveImageBeneathMenu), keyEquivalent: "")
+                save.target = self
+                menu.insertItem(save, at: index)
+            }
         }
         // Drop separators left leading, trailing, or doubled by the removals.
         var previousWasSeparator = true
@@ -66,5 +84,14 @@ final class XWebView: WKWebView {
         }
         if menu.items.last?.isSeparatorItem == true { menu.removeItem(at: menu.items.count - 1) }
         super.willOpenMenu(menu, with: event)
+    }
+
+    @objc private func saveImageBeneathMenu() {
+        guard let point = menuPoint else { return }
+        evaluateJavaScript("window.__xDesktop?.imageAt(\(point.x), \(point.y))", in: nil, in: WebsiteAdapter.world) { [weak self] result in
+            guard case .success(let value) = result, let source = value as? String, let url = URL(string: source),
+                  url.scheme == "https" else { NSSound.beep(); return }
+            self?.saveImage?(url)
+        }
     }
 }

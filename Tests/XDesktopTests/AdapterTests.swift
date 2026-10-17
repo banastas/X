@@ -162,6 +162,64 @@ final class AdapterTests: XCTestCase, WKScriptMessageHandler {
         XCTAssertNil(clicked)
     }
 
+    func testLocalizedFollowingSortMenuIsClosedAtTheDeadline() async throws {
+        try await load(); defer { close() }
+        // A sort menu in another language: never recognized, but opened by the adapter's own click.
+        try await change("""
+            var following=document.querySelectorAll('[role=tab]')[1]; following.setAttribute('aria-expanded','false');
+            following.addEventListener('click', () => {
+              if (following.getAttribute('aria-selected') !== 'true') return;
+              var existing=document.querySelector('[role=menu]');
+              if (existing) { existing.remove(); following.setAttribute('aria-expanded','false'); return; }
+              var menu=document.createElement('div'); menu.role='menu';
+              for (var name of ['Populares','Recientes']) { var o=document.createElement('div'); o.role='menuitem'; o.textContent=name; menu.append(o); }
+              document.body.append(menu); following.setAttribute('aria-expanded','true');
+            });
+            choose(1)
+            """) { !$0.ready && $0.reason == "Selecting Recent for Following" }
+        try await Task.sleep(for: .milliseconds(5500))
+        let body = try await webView.evaluateJavaScript("window.__xDesktop.snapshot()", in: nil, contentWorld: WebsiteAdapter.world)
+        XCTAssertEqual(WebsiteState.decode(body as Any)?.reason, "Could not select Recent; use the Following sort menu")
+        let menuOpen = try await webView.evaluateJavaScript("!!document.querySelector('[role=menu]')") as? Bool
+        XCTAssertEqual(menuOpen, false, "An open menu would hold automatic refresh back indefinitely")
+        let after = try await webView.evaluateJavaScript("window.__xDesktop.snapshot()", in: nil, contentWorld: WebsiteAdapter.world)
+        let closed = WebsiteState.decode(after as Any)
+        XCTAssertEqual(closed?.ready, true)
+        XCTAssertEqual(closed?.active, false)
+    }
+    func testFollowingRecentDefaultCanBeTurnedOff() async throws {
+        try await load(); defer { close() }
+        _ = try await webView.evaluateJavaScript("window.__xDesktop.setOptions({ followingRecent: false })", in: nil, contentWorld: WebsiteAdapter.world)
+        try await change(followingSortFixture + "; choose(1)") { $0.ready && $0.selected == 1 && $0.reason.isEmpty }
+        let sortClicks = try await webView.evaluateJavaScript("sortClicks") as? Int
+        XCTAssertEqual(sortClicks, 0)
+        let menuOpen = try await webView.evaluateJavaScript("!!document.querySelector('[role=menu]')") as? Bool
+        XCTAssertEqual(menuOpen, false)
+    }
+    func testFeedRestorationRetriesUntilTabHandlersAttach() async throws {
+        try await load(); defer { close() }
+        // Swallow tab clicks for a moment, as X can render tabs before React hydrates them.
+        _ = try await webView.evaluateJavaScript("var hydrated=false; setTimeout(() => hydrated=true, 1200); document.querySelector('[role=tablist]').addEventListener('click', e => { if (!hydrated) e.stopImmediatePropagation(); }, true); true")
+        let e = expectation(description: "Following restored after hydration"); expected = { $0.ready && $0.selected == 1 }; pending = e
+        _ = try await webView.evaluateJavaScript("window.__xDesktop.restoreFeed(1)", in: nil, contentWorld: WebsiteAdapter.world)
+        await fulfillment(of: [e], timeout: 8)
+        XCTAssertEqual(state?.restoreFailed, false)
+        XCTAssertEqual(state?.feedChosen, false)
+    }
+    func testMenuFeedSelectionCountsAsTheReadersChoice() async throws {
+        try await load(); defer { close() }
+        let selected = try await webView.evaluateJavaScript("window.__xDesktop.selectFeed(1)", in: nil, contentWorld: WebsiteAdapter.world) as? Bool
+        XCTAssertEqual(selected, true)
+        try await change("void 0") { $0.ready && $0.selected == 1 && $0.feedChosen }
+    }
+    func testImageBeneathAPointIsFound() async throws {
+        try await load(); defer { close() }
+        _ = try await webView.evaluateJavaScript("var img=document.createElement('img'); img.src='https://pbs.twimg.com/media/TEST?format=jpg&name=small'; img.style.cssText='position:fixed;left:0;top:200px;width:100px;height:100px;opacity:0'; document.body.append(img); var cover=document.createElement('div'); cover.style.cssText='position:fixed;left:0;top:200px;width:100px;height:100px'; document.body.append(cover); true")
+        let found = try await webView.evaluateJavaScript("window.__xDesktop.imageAt(50, 250)", in: nil, contentWorld: WebsiteAdapter.world) as? String
+        XCTAssertEqual(found, "https://pbs.twimg.com/media/TEST?format=jpg&name=small")
+        let none = try await webView.evaluateJavaScript("window.__xDesktop.imageAt(300, 600)", in: nil, contentWorld: WebsiteAdapter.world)
+        XCTAssertNil(none as? String)
+    }
     func testPlayingMediaProtectsEvenWithoutFocus() async throws {
         try await load(); defer { close() }
         try await change("var media = document.createElement('audio'); media.src='silence.wav'; media.muted=true; media.loop=true; document.body.append(media); media.play(); void 0") { $0.protected && $0.reason == "Auto-refresh paused while media plays" }

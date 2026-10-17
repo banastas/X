@@ -1,6 +1,8 @@
 import AppKit
+import Combine
 import SwiftUI
 import WebKit
+import XCore
 
 @main
 struct XDesktopMain {
@@ -17,6 +19,7 @@ struct XDesktopMain {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSToolbarDelegate, NSMenuItemValidation {
     private var window: NSWindow!
     private var model: BrowserModel!
+    private var titleSubscription: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         var fixture: URL?
@@ -59,6 +62,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             window.setFrame(frame, display: false)
         }
         installMenus()
+        // X's title carries the unread notification count; show it on the Dock icon,
+        // and name the window after the page for the Window menu and Mission Control.
+        titleSubscription = model.$pageTitle.sink { [weak self] title in
+            NSApp.dockTile.badgeLabel = PageTitle.badge(title)
+            if fixture == nil { self?.window.title = PageTitle.text(title) }
+        }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         model.attach(to: window)
@@ -69,7 +78,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         return true
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        model.confirmQuit() ? .terminateNow : .terminateCancel
+        // Without a draft the answer arrives immediately; otherwise a sheet replies later.
+        let reply = QuitReply()
+        model.confirmQuit { quit in
+            if reply.deferred { sender.reply(toApplicationShouldTerminate: quit) } else { reply.answer = quit }
+        }
+        if let answer = reply.answer { return answer ? .terminateNow : .terminateCancel }
+        reply.deferred = true
+        return .terminateLater
     }
     func applicationWillTerminate(_ notification: Notification) { model.shutdown() }
     func windowWillClose(_ notification: Notification) { model.windowClosed() }
@@ -82,9 +98,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     func windowDidResignKey(_ notification: Notification) { model.cancelGesture() }
 
     @objc private func refresh() { model.refresh() }
+    @objc private func stop() { model.stop() }
     @objc private func home() { model.home() }
     @objc private func back() { model.back() }
     @objc private func forward() { model.forward() }
+    @objc private func selectForYou() { model.selectFeed(0) }
+    @objc private func selectFollowing() { model.selectFeed(1) }
+    @objc private func toggleFollowingRecent() { model.toggleFollowingRecent() }
+    @objc private func copyLink() { model.copyLink() }
+    @objc private func openInBrowser() { model.openInBrowser() }
+    @objc private func showFind() { model.showFind() }
+    @objc private func findNext() { model.findNext() }
+    @objc private func findPrevious() { model.findNext(backwards: true) }
     @objc private func toggleAutomatic() { model.toggleAutomatic() }
     @objc private func zoomIn() { model.zoomIn() }
     @objc private func zoomOut() { model.zoomOut() }
@@ -99,6 +124,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         case #selector(back): return model.canGoBack
         case #selector(forward): return model.canGoForward
         case #selector(refresh): return !model.loading
+        case #selector(stop): return model.loading
+        case #selector(copyLink), #selector(openInBrowser): return model.currentLink != nil
+        case #selector(selectForYou), #selector(selectFollowing):
+            let index = menuItem.action == #selector(selectForYou) ? 0 : 1
+            menuItem.state = model.page.home && model.page.recognized && model.page.selected == index ? .on : .off
+            return true
+        case #selector(toggleFollowingRecent):
+            menuItem.state = model.followingRecent ? .on : .off
+            return true
         case #selector(toggleAutomatic):
             menuItem.title = model.autoRefresh ? "Pause Auto-refresh" : "Resume Auto-refresh"
             return true
@@ -156,6 +190,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         appMenu.addItem(.separator())
         _ = add("Quit X", #selector(NSApplication.terminate(_:)), "q", to: appMenu)
 
+        let file = submenu("File", in: menu)
+        _ = add("Copy Link", #selector(copyLink), "c", [.command, .shift], to: file, target: self)
+        _ = add("Open in Browser", #selector(openInBrowser), "o", [.command, .shift], to: file, target: self)
+
         let edit = submenu("Edit", in: menu)
         _ = add("Undo", Selector(("undo:")), "z", to: edit)
         _ = add("Redo", Selector(("redo:")), "z", [.command, .shift], to: edit)
@@ -166,6 +204,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         _ = add("Paste and Match Style", #selector(NSTextView.pasteAsPlainText(_:)), "v", [.command, .option, .shift], to: edit)
         _ = add("Delete", #selector(NSText.delete(_:)), to: edit)
         _ = add("Select All", #selector(NSText.selectAll(_:)), "a", to: edit)
+        edit.addItem(.separator())
+        let find = submenu("Find", in: edit)
+        _ = add("Find…", #selector(showFind), "f", to: find, target: self)
+        _ = add("Find Next", #selector(findNext), "g", to: find, target: self)
+        _ = add("Find Previous", #selector(findPrevious), "g", [.command, .shift], to: find, target: self)
         edit.addItem(.separator())
         let spelling = submenu("Spelling and Grammar", in: edit)
         _ = add("Show Spelling and Grammar", #selector(NSText.showGuessPanel(_:)), ":", to: spelling)
@@ -185,9 +228,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
 
         let view = submenu("View", in: menu)
         _ = add("Refresh", #selector(refresh), "r", to: view, target: self)
+        _ = add("Stop", #selector(stop), ".", to: view, target: self)
         _ = add("Home", #selector(home), "1", to: view, target: self)
         _ = add("Back", #selector(back), "[", to: view, target: self)
         _ = add("Forward", #selector(forward), "]", to: view, target: self)
+        view.addItem(.separator())
+        _ = add("For You", #selector(selectForYou), "1", [.command, .option], to: view, target: self)
+        _ = add("Following", #selector(selectFollowing), "2", [.command, .option], to: view, target: self)
+        _ = add("Default Following to Recent", #selector(toggleFollowingRecent), to: view, target: self)
         view.addItem(.separator())
         _ = add("Pause Auto-refresh", #selector(toggleAutomatic), "p", to: view, target: self)
         view.addItem(.separator())
@@ -214,6 +262,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     }
 }
 
+/// Carries an answer from a quit confirmation that may arrive before or after
+/// `applicationShouldTerminate` returns.
+@MainActor
+private final class QuitReply {
+    var deferred = false
+    var answer: Bool?
+}
+
 private struct WebViewHost: NSViewRepresentable {
     let model: BrowserModel
     func makeNSView(context: Context) -> WKWebView { model.webView }
@@ -229,13 +285,25 @@ private struct ContentView: View {
         return model.pullUsesWheel ? "Keep scrolling to refresh" : "Pull to refresh"
     }
 
+    /// The status line while automatic refresh is simply counting down.
+    private func countdown(to next: Date, at date: Date) -> String {
+        let seconds = Int(next.timeIntervalSince(date).rounded(.up))
+        let refreshed = model.lastRefresh.map { " · Refreshed \($0.formatted(date: .omitted, time: .shortened))" } ?? ""
+        return (seconds > 0 ? "Next refresh in \(seconds)s" : "Refreshing once you pause") + refreshed
+    }
+
     var body: some View {
         VStack(spacing: 0) {
+            if model.findVisible {
+                FindBar(model: model)
+                Divider()
+            }
             ZStack(alignment: .top) {
                 WebViewHost(model: model)
                 if !model.hasContent {
                     // Cover the empty web view until the first document draws, avoiding a white launch flash.
                     Color(nsColor: .windowBackgroundColor).allowsHitTesting(false)
+                    if !model.loading { LoadProblem(model: model) }
                 }
                 if model.pullDistance > 0 {
                     Label(pullLabel, systemImage: model.pullArmed ? "arrow.clockwise" : "arrow.down")
@@ -250,8 +318,15 @@ private struct ContentView: View {
             }
             Divider()
             HStack(spacing: 8) {
-                Text(model.status).font(.system(size: 11)).lineLimit(model.errorMessage == nil ? 1 : 2).foregroundStyle(.secondary)
-                    .help(model.lastRefresh.map { "Page refreshed at \($0.formatted(date: .omitted, time: .standard))" } ?? model.status)
+                Group {
+                    if let next = model.nextRefresh {
+                        TimelineView(.periodic(from: .now, by: 1)) { context in Text(countdown(to: next, at: context.date)) }
+                    } else {
+                        Text(model.status)
+                    }
+                }
+                .font(.system(size: 11)).lineLimit(model.errorMessage == nil ? 1 : 2).foregroundStyle(.secondary)
+                .help(model.lastRefresh.map { "Page refreshed at \($0.formatted(date: .omitted, time: .standard))" } ?? model.status)
                 Spacer(minLength: 0)
                 if model.errorMessage != nil {
                     Button("Retry") { model.refresh() }.font(.caption)
@@ -261,6 +336,49 @@ private struct ContentView: View {
             }.padding(.horizontal, 10).padding(.vertical, 3)
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: model.pullArmed)
+    }
+}
+
+/// Shown in place of the page when nothing has loaded yet, so a failed launch is not a blank window.
+private struct LoadProblem: View {
+    @ObservedObject var model: BrowserModel
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "wifi.exclamationmark").font(.system(size: 34)).foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text("X didn't load").font(.headline)
+            Text(model.errorMessage ?? "Loading stopped.").font(.callout).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Try Again") { model.refresh() }.keyboardShortcut(.defaultAction).padding(.top, 4)
+        }
+        .padding(24).frame(maxWidth: 320).frame(maxHeight: .infinity)
+    }
+}
+
+private struct FindBar: View {
+    @ObservedObject var model: BrowserModel
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
+            TextField("Find on page", text: $model.findQuery)
+                .textFieldStyle(.plain).focused($focused)
+                .onSubmit { model.findNext() }
+                .onChange(of: model.findQuery) { _, query in model.find(query) }
+            if model.findMissing { Text("Not found").foregroundStyle(.secondary) }
+            Button { model.findNext(backwards: true) } label: { Image(systemName: "chevron.up").frame(width: 20, height: 20) }
+                .help("Previous (⇧⌘G)").accessibilityLabel("Previous match")
+            Button { model.findNext() } label: { Image(systemName: "chevron.down").frame(width: 20, height: 20) }
+                .help("Next (⌘G)").accessibilityLabel("Next match")
+            Button("Done", action: model.hideFind)
+        }
+        .font(.system(size: 12)).buttonStyle(.borderless)
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .onExitCommand(perform: model.hideFind)
+        .onAppear { focused = true }
+        .onChange(of: model.findRequest) { focused = true }
     }
 }
 
@@ -275,12 +393,20 @@ private struct ToolbarControls: View {
                 Button(action: model.back) { Image(systemName: "chevron.left").frame(width: 24, height: 24) }
                     .disabled(!model.canGoBack)
                     .help("Back (⌘[)").accessibilityLabel("Back")
+                Button(action: model.forward) { Image(systemName: "chevron.right").frame(width: 24, height: 24) }
+                    .disabled(!model.canGoForward)
+                    .help("Forward (⌘])").accessibilityLabel("Forward")
                 Button(action: model.home) { Image(systemName: "house").frame(width: 24, height: 24) }
                     .help("Home (⌘1)").accessibilityLabel("Home")
             } else {
-                Button { model.refresh() } label: { Image(systemName: "arrow.clockwise").frame(width: 24, height: 24) }
-                    .disabled(model.loading)
-                    .help("Refresh (⌘R)").accessibilityLabel("Refresh")
+                // While a load is under way, the same place stops it.
+                if model.loading {
+                    Button(action: model.stop) { Image(systemName: "xmark").frame(width: 24, height: 24) }
+                        .help("Stop loading (⌘.)").accessibilityLabel("Stop")
+                } else {
+                    Button { model.refresh() } label: { Image(systemName: "arrow.clockwise").frame(width: 24, height: 24) }
+                        .help("Refresh (⌘R)").accessibilityLabel("Refresh")
+                }
                 // A timer, not play/pause, so it cannot be mistaken for a media control.
                 Button(action: model.toggleAutomatic) {
                     Image(systemName: model.autoRefresh ? "timer.circle.fill" : "timer.circle")
@@ -295,6 +421,6 @@ private struct ToolbarControls: View {
         }
         .buttonStyle(.borderless)
         .font(.system(size: 12))
-        .frame(width: 56, height: 26)
+        .frame(width: navigation ? 84 : 56, height: 26)
     }
 }

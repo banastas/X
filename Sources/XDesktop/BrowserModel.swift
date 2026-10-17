@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import Network
 import WebKit
 import XCore
 
@@ -36,6 +37,16 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
     @Published private(set) var pageZoom: Double
     /// False until the first document shows something, so launch never flashes an empty white view.
     @Published private(set) var hasContent = false
+    /// When the next automatic refresh becomes due, shown only while it is simply counting down.
+    /// Published only when the deadline itself moves, so an idle window is not redrawn every tick.
+    @Published private(set) var nextRefresh: Date?
+    /// Whether the adapter chooses Recent when Following opens.
+    @Published private(set) var followingRecent: Bool
+    @Published private(set) var pageTitle: String?
+    @Published private(set) var findVisible = false
+    @Published private(set) var findRequest = 0
+    @Published private(set) var findMissing = false
+    @Published var findQuery = ""
     let webView: WKWebView
     private(set) var page = WebsiteState.empty
     private(set) var schedule: RefreshSchedule
@@ -58,6 +69,16 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
     private var feedFailed = false
     private var lastCrash: Double?
     private var focusedWebView = false
+    /// The adapter has received this navigation's restore request, so its feed-choice flags are current.
+    private var restoreAcknowledged = false
+    private var adapterSource: String?
+    private var adapterForeground: Bool?
+    private var countdownDeadline: Double?
+    private var confirming = false
+    private var connectionFailed = false
+    private var online = true
+    private let pathMonitor = NWPathMonitor()
+    private var titleObservation: NSKeyValueObservation?
     private var downloadDestinations: [ObjectIdentifier: URL] = [:]
     private var popupWindows: [NSWindow] = []
     private var popupDelegates: [PopupDelegate] = []
@@ -72,6 +93,8 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
     var pullEligible: Bool {
         foregroundAvailable && page.home && page.ready && !page.protected && !schedule.loading && errorMessage == nil
     }
+    /// The current X page, for copying or opening elsewhere.
+    var currentLink: URL? { NavigationPolicy.isX(webView.url) ? webView.url : nil }
     var canZoomIn: Bool { pageZoom < Self.zoomLevels.last! }
     var canZoomOut: Bool { pageZoom > Self.zoomLevels.first! }
 
@@ -80,8 +103,9 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         self.defaults = defaults
         self.fixtureURL = fixtureURL
         self.windowVisible = windowVisible
-        defaults.register(defaults: ["autoRefresh": true, "pageZoom": 1.0])
+        defaults.register(defaults: ["autoRefresh": true, "pageZoom": 1.0, "followingRecent": true])
         autoRefresh = defaults.bool(forKey: "autoRefresh")
+        followingRecent = defaults.bool(forKey: "followingRecent")
         schedule = RefreshSchedule(enabled: defaults.bool(forKey: "autoRefresh"))
         pageZoom = min(max(defaults.double(forKey: "pageZoom"), Self.zoomLevels.first!), Self.zoomLevels.last!)
         let configuration = WKWebViewConfiguration()
@@ -97,14 +121,30 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         webView.pageZoom = pageZoom
         webView.isInspectable = _isDebugAssertConfiguration()
         // Keep the normal WebKit user agent. Do not disguise the browser.
-        do {
-            configuration.userContentController.add(self, contentWorld: WebsiteAdapter.world, name: "websiteState")
-            configuration.userContentController.addUserScript(WKUserScript(
-                source: try WebsiteAdapter.script, injectionTime: .atDocumentEnd,
-                forMainFrameOnly: true, in: WebsiteAdapter.world))
-        } catch {
-            errorMessage = "The website adapter is missing. Rebuild the application."
+        configuration.userContentController.add(self, contentWorld: WebsiteAdapter.world, name: "websiteState")
+        adapterSource = try? WebsiteAdapter.script
+        installAdapter()
+        (webView as? XWebView)?.saveImage = { [weak self] url in self?.saveImage(url) }
+        titleObservation = webView.observe(\.title, options: [.initial, .new]) { [weak self] webView, _ in
+            MainActor.assumeIsolated {
+                let title = webView.title
+                if self?.pageTitle != title { self?.pageTitle = title }
+            }
         }
+    }
+
+    /// Preferences reach each new document through a script that runs before the adapter.
+    private func installAdapter() {
+        let controller = webView.configuration.userContentController
+        controller.removeAllUserScripts()
+        guard let adapterSource else {
+            errorMessage = "The website adapter is missing. Rebuild the application."
+            return
+        }
+        controller.addUserScript(WKUserScript(source: "window.__xDesktopOptions = { followingRecent: \(followingRecent) };",
+            injectionTime: .atDocumentStart, forMainFrameOnly: true, in: WebsiteAdapter.world))
+        controller.addUserScript(WKUserScript(source: adapterSource, injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true, in: WebsiteAdapter.world))
     }
 
     func attach(to window: NSWindow) {
@@ -132,7 +172,21 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
             MainActor.assumeIsolated { self?.handleScroll(event) }
             return event
         }
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            let satisfied = path.status == .satisfied
+            Task { @MainActor in self?.networkChanged(satisfied) }
+        }
+        pathMonitor.start(queue: .main)
         home()
+    }
+
+    /// A load that failed for lack of a connection retries as soon as one returns,
+    /// rather than waiting minutes for the next scheduled retry.
+    private func networkChanged(_ satisfied: Bool) {
+        let wasOnline = online
+        online = satisfied
+        guard satisfied, !wasOnline, connectionFailed, !schedule.loading else { return }
+        refresh(manual: false)
     }
 
     private func observeWorkspace(_ name: Notification.Name, key: String, paused: Bool) {
@@ -168,6 +222,8 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
     func shutdown() {
         cancelPull()
         timer?.invalidate()
+        pathMonitor.cancel()
+        titleObservation = nil
         if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
         observers.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
         distributedObservers.forEach { DistributedNotificationCenter.default().removeObserver($0) }
@@ -181,22 +237,112 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         updateStatus()
     }
 
-    func home() {
-        guard confirmDiscardIfNeeded(action: "Discard and Go Home") else { return }
-        startNavigation()
-        loadHomeDocument()
+    func toggleFollowingRecent() {
+        followingRecent.toggle()
+        defaults.set(followingRecent, forKey: "followingRecent")
+        installAdapter()
+        webView.evaluateJavaScript("window.__xDesktop?.setOptions({ followingRecent: \(followingRecent) })",
+                                   in: nil, in: WebsiteAdapter.world) { _ in }
+    }
+
+    func home() { goHome(feed: nil) }
+
+    /// Switches Home to For you (0) or Following (1), loading Home first when elsewhere.
+    func selectFeed(_ index: Int) {
+        guard (0...1).contains(index) else { return }
+        if page.home && page.recognized && !schedule.loading {
+            webView.evaluateJavaScript("window.__xDesktop?.selectFeed(\(index))", in: nil, in: WebsiteAdapter.world) { _ in }
+        } else {
+            goHome(feed: index)
+        }
+    }
+
+    private func goHome(feed: Int?) {
+        confirmDiscard(action: "Discard and Go Home") { [weak self] in
+            guard let self else { return }
+            if let feed { self.defaults.set(feed, forKey: "selectedFeed") }
+            self.startNavigation()
+            self.loadHomeDocument()
+        }
     }
 
     func back() {
-        guard webView.canGoBack, confirmDiscardIfNeeded(action: "Discard and Go Back") else { return }
-        startNavigation()
-        webView.goBack()
+        guard webView.canGoBack else { return }
+        confirmDiscard(action: "Discard and Go Back") { [weak self] in
+            guard let self, self.webView.canGoBack else { return }
+            self.startNavigation()
+            self.webView.goBack()
+        }
     }
 
     func forward() {
-        guard webView.canGoForward, confirmDiscardIfNeeded(action: "Discard and Go Forward") else { return }
-        startNavigation()
-        webView.goForward()
+        guard webView.canGoForward else { return }
+        confirmDiscard(action: "Discard and Go Forward") { [weak self] in
+            guard let self, self.webView.canGoForward else { return }
+            self.startNavigation()
+            self.webView.goForward()
+        }
+    }
+
+    /// Abandons a slow or stalled load, leaving whatever the page has shown so far.
+    func stop() {
+        guard loading else { return }
+        webView.stopLoading()
+        loading = false
+        loadStarted = nil
+        restoreFeed = nil
+        schedule.cancelled(now: now)
+        requestState()
+        updateEligibility()
+        updateStatus()
+    }
+
+    func copyLink() {
+        guard let url = currentLink else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(url.absoluteString, forType: .URL)
+        pasteboard.setString(url.absoluteString, forType: .string)
+        showNotice("Copied link.")
+    }
+
+    func openInBrowser() {
+        guard let url = currentLink else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func showFind() {
+        findVisible = true
+        findRequest += 1
+        if !findQuery.isEmpty { find(findQuery) }
+    }
+
+    func findNext(backwards: Bool = false) {
+        guard findVisible, !findQuery.isEmpty else { showFind(); return }
+        find(findQuery, backwards: backwards)
+    }
+
+    func find(_ query: String, backwards: Bool = false) {
+        guard !query.isEmpty else { if findMissing { findMissing = false }; return }
+        let configuration = WKFindConfiguration()
+        configuration.backwards = backwards
+        configuration.wraps = true
+        webView.find(query, configuration: configuration) { [weak self] result in
+            guard let self, self.findMissing == result.matchFound else { return }
+            self.findMissing = !result.matchFound
+        }
+    }
+
+    func hideFind() {
+        findVisible = false
+        findMissing = false
+        webView.window?.makeFirstResponder(webView)
+    }
+
+    private func saveImage(_ url: URL) {
+        webView.startDownload(using: URLRequest(url: NavigationPolicy.fullSizeImage(url))) { [weak self] download in
+            download.delegate = self
+        }
     }
 
     func zoomIn() { setZoom(Self.zoomLevels.first { $0 > pageZoom + 0.001 } ?? pageZoom) }
@@ -210,7 +356,10 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
     }
 
     /// Asks before quitting would discard a detected draft.
-    func confirmQuit() -> Bool { confirmDiscardIfNeeded(action: "Discard and Quit") }
+    func confirmQuit(_ reply: @escaping @MainActor (Bool) -> Void) {
+        guard !confirming else { reply(false); return }
+        confirmDiscard(action: "Discard and Quit", cancelled: { reply(false) }) { reply(true) }
+    }
 
     func perform(_ action: Notice.Action) {
         switch action {
@@ -257,7 +406,12 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
                 return
             }
             if manual {
-                guard self.confirmDiscardIfNeeded(action: "Discard and Reload") else { return }
+                self.confirmDiscard(action: "Discard and Reload") { [weak self] in
+                    guard let self, !self.schedule.loading else { return }
+                    self.startNavigation()
+                    self.reloadDocument()
+                }
+                return
             } else {
                 guard !requiresTop || self.page.atTop else { return }
                 guard !requiresAutomatic || (self.autoRefresh && !self.page.active && !self.pull.tracking) else { return }
@@ -275,15 +429,33 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
     }
 
     /// Only a detected draft justifies interrupting an explicit navigation. Media,
-    /// focus, and dialogs simply end, as they would in a browser.
-    private func confirmDiscardIfNeeded(action: String) -> Bool {
-        guard page.draft else { return true }
+    /// focus, and dialogs simply end, as they would in a browser. Without a draft,
+    /// `proceed` runs immediately.
+    private func confirmDiscard(action: String, cancelled: (@MainActor () -> Void)? = nil,
+                                then proceed: @escaping @MainActor () -> Void) {
+        guard page.draft else { proceed(); return }
+        // One question at a time; a repeated command while it is showing does nothing.
+        guard !confirming else { cancelled?(); return }
         let alert = NSAlert()
         alert.messageText = "Discard your unsent post?"
         alert.informativeText = "X may not keep text or attachments you haven't posted."
         alert.addButton(withTitle: "Keep Editing")
         alert.addButton(withTitle: action).hasDestructiveAction = true
-        return alert.runModal() == .alertSecondButtonReturn
+        confirming = true
+        present(alert) { [weak self] response in
+            self?.confirming = false
+            if response == .alertSecondButtonReturn { proceed() } else { cancelled?() }
+        }
+    }
+
+    /// Attaches an alert to the window it concerns, falling back to an app-modal panel
+    /// when that window cannot show a sheet.
+    private func present(_ alert: NSAlert, completion: @escaping @MainActor (NSApplication.ModalResponse) -> Void) {
+        if let window = webView.window, window.isVisible, !window.isMiniaturized, window.attachedSheet == nil {
+            alert.beginSheetModal(for: window) { response in MainActor.assumeIsolated { completion(response) } }
+        } else {
+            completion(alert.runModal())
+        }
     }
 
     private func startNavigation() {
@@ -293,6 +465,8 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         loadStarted = now
         errorMessage = nil
         feedFailed = false
+        connectionFailed = false
+        restoreAcknowledged = false
         restoreFeed = defaults.object(forKey: "selectedFeed") as? Int
         if !(0...1).contains(restoreFeed ?? -1) { restoreFeed = nil }
         page = .empty
@@ -310,19 +484,33 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         }
         // Home settles once the feed is ready and restored, or a pinned tab is showing.
         // Elsewhere, an unrecognized /home must not complete before the adapter reports.
-        let settled = page.home ? page.otherTab || (page.ready && (restoreFeed == nil || page.selected == restoreFeed))
+        let settled = page.home ? page.otherTab || (page.ready && restorationSettled(page))
                                 : !isHomeURL(webView.url)
         guard settled else { return }
         loadStarted = nil
         loading = false
         restoreFeed = nil
         schedule.succeeded(now: now)
-        if page.ready {
+        if page.ready && !page.restoreFailed {
             lastRefresh = Date()
             defaults.set(page.selected, forKey: "selectedFeed")
         }
         updateEligibility()
         updateStatus()
+    }
+
+    /// The saved feed is showing, or the adapter has stopped pursuing it: the reader
+    /// chose another feed, or the saved one could not be selected in time.
+    private func restorationSettled(_ state: WebsiteState) -> Bool {
+        restoreFeed == nil || state.selected == restoreFeed || (restoreAcknowledged && (state.feedChosen || state.restoreFailed))
+    }
+
+    private func sendRestoreFeed(_ feed: Int) {
+        webView.evaluateJavaScript("window.__xDesktop?.restoreFeed(\(feed))", in: nil, in: WebsiteAdapter.world) { [weak self] _ in
+            // Messages after this point reflect the reset feed-choice flags.
+            guard let self, self.restoreFeed == feed else { return }
+            self.restoreAcknowledged = true
+        }
     }
 
     private func fail(_ message: String, manual: Bool = false, retryAfter: Double? = nil) {
@@ -338,6 +526,13 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
 
     private func requestState() {
         webView.evaluateJavaScript("window.__xDesktop?.refreshState()", in: nil, in: WebsiteAdapter.world) { _ in }
+    }
+
+    /// The adapter slows its heartbeat while the window cannot be seen.
+    private func updateAdapterForeground() {
+        guard mainWindow != nil, adapterForeground != foregroundAvailable else { return }
+        adapterForeground = foregroundAvailable
+        webView.evaluateJavaScript("window.__xDesktop?.setForeground(\(foregroundAvailable))", in: nil, in: WebsiteAdapter.world) { _ in }
     }
 
     private func showNotice(_ message: String, action: Notice.Action? = nil) {
@@ -376,6 +571,7 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
     private func updateEligibility() {
         let eligible = foregroundAvailable && page.home && page.ready && !page.protected && errorMessage == nil
         schedule.setEligible(eligible, now: now)
+        updateAdapterForeground()
         if page.active || pull.tracking { schedule.interacted(now: now) }
         if !eligible { cancelPull() }
     }
@@ -395,6 +591,11 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
             else { text = "Waiting for the home feed" }
         }
         if text != status { status = text }
+        let counting = text.hasPrefix("Auto-refresh every") ? schedule.deadline : nil
+        if counting != countdownDeadline {
+            countdownDeadline = counting
+            nextRefresh = counting.map { Date(timeIntervalSinceNow: $0 - now) }
+        }
     }
 
     private func cancelPull() {
@@ -454,7 +655,8 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         if documentLoaded && value.otherTab {
             // X keeps its own pinned-tab choice; restoring For you or Following would override it.
             defaults.removeObject(forKey: "selectedFeed")
-        } else if value.recognized && documentLoaded && (restoreFeed == nil || value.selected == restoreFeed) {
+        } else if value.recognized && documentLoaded && !value.restoreFailed &&
+                    (restoreFeed == nil || value.selected == restoreFeed || (restoreAcknowledged && value.feedChosen)) {
             defaults.set(value.selected, forKey: "selectedFeed")
             if previous.selected != value.selected { cancelPull(); schedule.postpone(now: now) }
         }
@@ -468,9 +670,7 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         // isolated adapter can establish readiness once native navigation is idle.
         if schedule.loading && !documentLoaded && !webView.isLoading && value.home && value.ready {
             documentLoaded = true
-            if let restoreFeed, value.selected != restoreFeed {
-                webView.evaluateJavaScript("window.__xDesktop?.restoreFeed(\(restoreFeed))", in: nil, in: WebsiteAdapter.world) { _ in }
-            }
+            if let restoreFeed, value.selected != restoreFeed { sendRestoreFeed(restoreFeed) }
         }
         updateEligibility()
         completeIfReady()
@@ -490,9 +690,10 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         if !focusedWebView, let window = webView.window {
             focusedWebView = window.makeFirstResponder(webView)
         }
-        if let restoreFeed, isHomeURL(webView.url) {
-            webView.evaluateJavaScript("window.__xDesktop?.restoreFeed(\(restoreFeed))", in: nil, in: WebsiteAdapter.world) { _ in }
-        }
+        if let restoreFeed, isHomeURL(webView.url) { sendRestoreFeed(restoreFeed) }
+        // A new document's adapter starts in the foreground; tell it otherwise if needed.
+        adapterForeground = nil
+        updateAdapterForeground()
         requestState()
         completeIfReady()
     }
@@ -508,6 +709,13 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         // Cancellation, and a response handed off as a download, are not load failures.
         if error.domain == NSURLErrorDomain && error.code == NSURLErrorCancelled { return }
         if error.domain == "WebKitErrorDomain" && error.code == 102 { return }
+        if error.domain == NSURLErrorDomain {
+            connectionFailed = true
+            if error.code == NSURLErrorNotConnectedToInternet {
+                fail("You're offline. X will reload when the connection returns.")
+                return
+            }
+        }
         fail("Could not load X. Check your connection or retry.")
     }
 
@@ -553,7 +761,14 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
             else { decisionHandler(.cancel); showAuthentication(url) }
         } else {
             decisionHandler(.cancel)
-            guard NavigationPolicy.mayOpenExternally(url) else { return }
+            guard NavigationPolicy.mayOpenExternally(url) else {
+                // Say why a clicked link did nothing; scripted navigations stay silent.
+                if navigationAction.navigationType == .linkActivated, let scheme = url.scheme?.lowercased(),
+                   !["javascript", "about", "blob", "data"].contains(scheme) {
+                    showNotice("This app can't open \(scheme): links.")
+                }
+                return
+            }
             // New windows can only be requested during a user gesture, because scripts may
             // not open windows automatically. Redirects and script navigations ask first.
             if navigationAction.navigationType == .linkActivated || navigationAction.targetFrame == nil {
@@ -571,7 +786,8 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
             return makeAuthenticationWindow(configuration: configuration)
         }
         if NavigationPolicy.isX(url) {
-            if confirmDiscardIfNeeded(action: "Discard and Open Link") { webView.load(navigationAction.request) }
+            let request = navigationAction.request
+            confirmDiscard(action: "Discard and Open Link") { [weak self] in self?.webView.load(request) }
         } else if NavigationPolicy.mayOpenExternally(url) { NSWorkspace.shared.open(url) }
         return nil
     }
@@ -607,6 +823,7 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
             copy += 1
         }
         downloadDestinations[ObjectIdentifier(download)] = destination
+        showNotice("Downloading \(destination.lastPathComponent)…")
         completionHandler(destination)
     }
     func downloadDidFinish(_ download: WKDownload) {
@@ -662,13 +879,14 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
     }
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping @MainActor @Sendable () -> Void) {
-        let alert = NSAlert(); alert.messageText = message; alert.runModal(); completionHandler()
+        let alert = NSAlert(); alert.messageText = message
+        present(alert) { _ in completionHandler() }
     }
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping @MainActor @Sendable (Bool) -> Void) {
         let alert = NSAlert(); alert.messageText = message
         alert.addButton(withTitle: "OK"); alert.addButton(withTitle: "Cancel")
-        completionHandler(alert.runModal() == .alertFirstButtonReturn)
+        present(alert) { completionHandler($0 == .alertFirstButtonReturn) }
     }
 }
 
