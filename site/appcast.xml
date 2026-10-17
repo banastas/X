@@ -6,13 +6,13 @@
     <description>Updates for X for macOS</description>
     <language>en</language>
     <item>
-      <title>X for macOS 0.4.0</title>
-      <pubDate>Sat, 17 Oct 2026 14:41:52 +0000</pubDate>
-      <sparkle:version>202610170740</sparkle:version>
-      <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+      <title>X for macOS 0.5.0</title>
+      <pubDate>Sat, 17 Oct 2026 15:25:05 +0000</pubDate>
+      <sparkle:version>202610170823</sparkle:version>
+      <sparkle:shortVersionString>0.5.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<p>Requires macOS 27. Faster redraws, Apple silicon only.</p>]]></description>
-      <enclosure url="https://x.banast.as/downloads/X-0.4.0-202610170740.zip" type="application/octet-stream" sparkle:edSignature="29TMVNJoy3nAcLRFnfgCfYsBHDJ7FUDbN3g8m2YetAsIOe6FfAjgInCuCUvgX51Qfr+aoYvdEkQRcJPGYC21Bg==" length="3167316" />
+      <description><![CDATA[<p>Settings, keeps your place across refreshes, uses X's Show posts button, refreshes pinned lists, notifications, Help and diagnostics.</p>]]></description>
+      <enclosure url="https://x.banast.as/downloads/X-0.5.0-202610170823.zip" type="application/octet-stream" sparkle:edSignature="Gvri+119lxz9R5kgiGWPR2aZkBI1s6ElaYS059SSYvmrgU05HZKIKNK3U5IiiPLhAR1G555HvNJE3JB3dGLlBw==" length="3258367" />
     </item>
   </channel>
 </rss>
