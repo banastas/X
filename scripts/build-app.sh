@@ -1,24 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-usage='Usage: scripts/build-app.sh [debug|release] [universal]'
+usage='Usage: scripts/build-app.sh [debug|release]'
 configuration="${1:-release}"
 case "$configuration" in debug|release) ;; *) echo "$usage" >&2; exit 2;; esac
-# Builds target this Mac. "universal" adds an Intel slice for copying the app to another Mac;
-# recent Xcode releases warn that x86_64 is deprecated, but the slice still targets macOS 14.
-arch_flags=()
-case "${2:-}" in
-    "") ;;
-    universal) arch_flags=(--arch arm64 --arch x86_64) ;;
-    *) echo "$usage" >&2; exit 2 ;;
-esac
+[ $# -le 1 ] || { echo "$usage" >&2; exit 2; }
+# macOS 27 runs only on Apple silicon, so the app is arm64 only.
 # Signing is ad hoc unless SIGN_IDENTITY names a Developer ID Application identity, as
 # scripts/release.sh does; that adds the hardened runtime, a secure timestamp and
 # Resources/X.entitlements, which notarization requires. release.sh also sets VERSION,
 # BUILD_NUMBER, and UPDATE_FEED with UPDATE_KEY: only published builds carry an update feed.
 identity="${SIGN_IDENTITY:--}"
-swift build -c "$configuration" ${arch_flags[@]+"${arch_flags[@]}"} -Xswiftc -warnings-as-errors
-binary_dir="$(swift build -c "$configuration" ${arch_flags[@]+"${arch_flags[@]}"} --show-bin-path)"
+swift build -c "$configuration" -Xswiftc -warnings-as-errors
+binary_dir="$(swift build -c "$configuration" --show-bin-path)"
 app_dir="$PWD/dist/X.app"
 # Start from an empty bundle so files removed from the project cannot linger.
 rm -rf "$app_dir" .build/AppIcon.iconset

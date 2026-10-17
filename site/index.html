@@ -204,7 +204,7 @@ footer nav { display: flex; gap: 18px; }
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 2v10m-4-4 4 4 4-4"/></svg>
           </a>
         </div>
-        <p class="meta" id="download-note">No release yet · macOS 14 or later</p>
+        <p class="meta" id="download-note">No release yet · macOS 27 or later</p>
         <p id="whatsnew" hidden></p>
       </div>
 
@@ -309,7 +309,7 @@ footer nav { display: flex; gap: 18px; }
         <h2 id="details-title">Details</h2>
       </div>
       <div class="details">
-        <div class="detail"><span class="label">Requires</span><p>macOS 14 Sonoma or later. Tested on Apple silicon.</p></div>
+        <div class="detail"><span class="label">Requires</span><p id="requires">macOS 27 or later, on a Mac with Apple silicon.</p></div>
         <div class="detail"><span class="label">Install</span><p>Unzip it, move X to Applications, and open it. Sign in to X in the window.</p></div>
         <div class="detail"><span class="label">Updates</span><p>Checks this site once a day and asks before installing. X › Check for Updates… checks now.</p></div>
         <div class="detail"><span class="label">Signed</span><p>Signed with Developer ID and notarized by Apple.</p></div>
@@ -395,6 +395,8 @@ footer nav { display: flex; gap: 18px; }
         button.classList.remove("is-soon");
         button.removeAttribute("aria-disabled");
       }
+      // The current download's own minimum, so this stays true across a change of requirement.
+      if (minOS) $("requires").textContent = "macOS " + minOS.replace(/\.0$/, "") + " or later, on a Mac with Apple silicon.";
       $("download-note").textContent = ["Version " + version, when, bytes ? (bytes / 1e6).toFixed(1) + " MB" : "",
         minOS ? "macOS " + minOS.replace(/\.0$/, "") + " or later" : ""].filter(Boolean).join(" · ");
       if (notes) {

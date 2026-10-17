@@ -169,7 +169,7 @@ Pull-to-refresh is a required feature. Trackpad and automated wheel checks have 
 
 ## 7. Architecture
 
-Deployment target: macOS 14 or later. Apple Silicon has been tested; Intel Macs and older supported macOS versions remain unvalidated.
+Deployment target: macOS 27 or later, so Apple silicon only (decided 2026-10-17, matching Blit, Rune and Cue). Use the newest APIs freely; add no availability checks or compatibility code. Version 0.3.0 was the last release for macOS 14 through 26.
 
 Use a small, dependency-free architecture:
 

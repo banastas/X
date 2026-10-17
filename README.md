@@ -11,7 +11,7 @@ Built with Swift, SwiftUI, AppKit, and WebKit. This project is independent of X 
 3. Open it. macOS asks once to confirm opening an app downloaded from the internet.
 4. Sign in to X in the window. Your browser's existing login is not imported, and you complete any account verification yourself.
 
-It needs **macOS 14 Sonoma or later** and has been tested on Apple silicon. The download is signed with Developer ID and notarized by Apple, and it [updates itself](#updates).
+It needs **macOS 27 or later**, so a Mac with Apple silicon. Version 0.3.0 was the last to run on macOS 14 through 26; copies of it on those systems keep working but are not offered later updates. The download is signed with Developer ID and notarized by Apple, and it [updates itself](#updates).
 
 Once Home loads, select **For you** or **Following**. Automatic refresh starts by default. Use the toolbar timer button or `Command-P` if you prefer to refresh manually.
 
@@ -99,8 +99,8 @@ Copies you build yourself are ad hoc signed, carry no update feed, and never upd
 
 ### Requirements
 
-- A Mac running **macOS 14 Sonoma or later**. Apple silicon has been tested; Intel Macs and older supported macOS versions have not been validated.
-- **Full Xcode with Swift 6 or later**, in a version compatible with your macOS. The app's minimum runtime version does not mean every Xcode release runs on macOS 14.
+- A Mac with Apple silicon running **macOS 27 or later**.
+- **Full Xcode 27 or later**, with Swift 6.4 and the macOS 27 SDK.
 - An internet connection and your own X account for the signed-in feeds.
 - Terminal for the build steps below. Git and the other required build tools are supplied by Xcode.
 
@@ -117,7 +117,7 @@ xcode-select -p
 swift --version
 ```
 
-The Swift version must be 6 or later. If the selected tools point to `/Library/Developer/CommandLineTools`, or to an older Xcode, select your full Xcode installation for this Terminal session. Command Line Tools alone cannot run the tests; `swift test` then fails with `unable to resolve module dependency: 'XCTest'`.
+The Swift version must be 6.4 or later. If the selected tools point to `/Library/Developer/CommandLineTools`, or to an older Xcode, select your full Xcode installation for this Terminal session. Command Line Tools alone cannot run the tests; `swift test` then fails with `unable to resolve module dependency: 'XCTest'`.
 
 ```sh
 export DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"
@@ -156,7 +156,7 @@ dist/X.app
 
 The script does not install the app or upload anything. The signature supports local use; it is not Apple Developer ID signing or notarization.
 
-The app is built for the Mac you build on. To copy it to a Mac with the other processor type, build a universal app with `scripts/build-app.sh release universal`. Recent Xcode releases warn that the Intel architecture is deprecated; the Intel build still targets macOS 14 but has not been tested.
+The app is built for Apple silicon only, because macOS 27 does not run on Intel Macs.
 
 ### 4. Open it and sign in
 
@@ -257,7 +257,7 @@ PUBLISH=1 INSTALL=1 VERSION=0.3.0 NOTES="What changed" scripts/release.sh   # â€
 
 ## Limitations and project status
 
-X can change its website or login requirements without notice. The app does not promise complete website feature parity, offline access, multiple accounts, or native notifications. Full upload, camera, microphone, and Google/Apple OAuth flows, comprehensive accessibility checks, older macOS/Intel compatibility, and an extended stability soak remain unverified. Physical mouse-wheel behavior can vary by device and driver. See the [verification report](docs/VERIFICATION.md) for details.
+X can change its website or login requirements without notice. The app does not promise complete website feature parity, offline access, multiple accounts, or native notifications. Full upload, camera, microphone, and Google/Apple OAuth flows, comprehensive accessibility checks, and an extended stability soak remain unverified. Physical mouse-wheel behavior can vary by device and driver. See the [verification report](docs/VERIFICATION.md) for details.
 
 [X's automation rules](https://help.x.com/en/rules-and-policies/x-automation) prohibit non-API website automation. They do not explicitly approve this app's timed reloads. The 60-second interval is a usability choice, not a documented exemption or assurance against account enforcement.
 

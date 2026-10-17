@@ -16,6 +16,14 @@ Interface and functionality additions: Stop while loading (toolbar and `⌘.`), 
 
 Not yet verified by hand: the “Not found” and Escape behavior of the find bar, `⌥⌘2`, Save Image against live X media, the Dock badge with real notifications, the confirmation sheets with a live draft, the Stop button, the offline launch state, and reconnect retry. None of these changes has been checked against the live website.
 
+## macOS 27 and later only (unreleased)
+
+The deployment target is now macOS 27 (`Package.swift`, `LSMinimumSystemVersion`), as for Blit, Rune and Cue, so the app is Apple silicon only; `scripts/build-app.sh` no longer offers a universal build, and `scripts/release.sh` no longer takes `ARCH`. The code had no availability checks to remove. `BrowserModel` moved from `ObservableObject` and `@Published` to Observation (`@Observable`), so each view redraws only for the properties it reads; the Dock badge and window title follow `pageTitle` through `Observations`, which needs macOS 26 or later; and launch uses `NSApp.activate()` instead of `activate(ignoringOtherApps:)`. Version 0.3.0 was the last release for macOS 14 through 26: Sparkle doesn't offer an update whose minimum is above the running system, so those copies stay on 0.3.0.
+
+- All **76 XCTest tests passed with zero failures** (46 desktop/WebKit and 30 core). The idle-window test now counts `Observations` emissions over everything the window's views read, and checks that the first emission arrives.
+- Release and debug builds passed with warnings treated as errors; the release binary's `LC_BUILD_VERSION` reports `minos 27.0`. `scripts/build-app.sh release universal` exits with its usage message.
+- A fixture launch through Launch Services (`open -n dist/X.app --args --fixture …`) loaded the feed, showed the countdown (“Next refresh in 55s”) and switched the toolbar's Stop back to Refresh after loading. Two findings from testing, neither a defect: with cooperative activation, a copy started from a background shell opens behind the frontmost app, so the window counts as covered, and rendering and auto-refresh wait, as designed; and a copy launched through Launch Services needs macOS's permission to read a fixture on an external volume, so the fixture was served from a local folder.
+
 ## Updates through Sparkle (unreleased)
 
 Published builds now update the way Blit, Rune and Cue do: Sparkle 2.10.0, a daily check of `https://x.banast.as/appcast.xml`, and updates signed with the family's EdDSA key. `scripts/release.sh` makes them (Developer ID, hardened runtime, notarization, publishing to `site/`), and Cloudflare Pages serves `site/` at x.banast.as. Only builds made by `release.sh` carry the feed, and the updater starts only in a Release build installed in an Applications folder (`UpdatePolicy`, `Updates`).
@@ -153,7 +161,7 @@ The final initial-build suite passed, followed by live native-Back and automatic
 
 - Live recheck of the 0.2.0 changes: reading deferral, occlusion and lock-screen suspension, full-screen video, downloads, draft confirmations, context-menu cleanup, and sign-in hand-back.
 - A two-hour stability soak with resource measurements and console inspection.
-- Comprehensive VoiceOver, Reduce Motion, minimum-window-size, multiple-display, older-macOS, and Intel coverage.
+- Comprehensive VoiceOver, Reduce Motion, minimum-window-size, and multiple-display coverage.
 - Broader real sleep, lock, session switching, minimize/restore, and network-loss checks.
 - Full Google/Apple sign-in, uploads, camera, microphone, and explicit media/full-screen flows.
 - Physical wheel-device and driver coverage beyond automated input.

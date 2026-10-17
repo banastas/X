@@ -1,5 +1,5 @@
 import AppKit
-import Combine
+import Observation
 import XCTest
 import WebKit
 @testable import XDesktop
@@ -216,11 +216,25 @@ final class RecoveryTests: XCTestCase {
         try await withModel(attached: true) { model, _ in
             try await waitUntil { !model.loading && model.page.ready }
             try await Task.sleep(for: .seconds(1))
-            var changes = 0
-            let subscription = model.objectWillChange.sink { changes += 1 }
+            // Everything the window's views read. Observations yields the current value first.
+            let changes = Counter()
+            let watch = Task {
+                for await _ in Observations({
+                    (model.status, model.loading, model.canGoBack, model.canGoForward, model.autoRefresh,
+                     model.pullDistance, model.pullArmed, model.pullUsesWheel, model.errorMessage, model.lastRefresh,
+                     model.notice, model.pageZoom, model.hasContent, model.nextRefresh, model.followingRecent,
+                     model.pageTitle, model.findVisible, model.findRequest, model.findMissing, model.findQuery)
+                }) { changes.value += 1 }
+            }
             try await Task.sleep(for: .seconds(3))
-            subscription.cancel()
-            XCTAssertLessThan(changes, 3, "An idle window should not republish unchanged state")
+            watch.cancel()
+            XCTAssertGreaterThanOrEqual(changes.value, 1, "Observations reports the current state first")
+            XCTAssertLessThan(changes.value - 1, 3, "An idle window should not republish unchanged state")
         }
     }
+}
+
+@MainActor
+private final class Counter {
+    var value = 0
 }

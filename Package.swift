@@ -3,7 +3,8 @@ import PackageDescription
 
 let package = Package(
     name: "XDesktop",
-    platforms: [.macOS(.v14)],
+    // macOS 27 and later only, as Blit, Rune and Cue are: the newest APIs, no compatibility code.
+    platforms: [.macOS("27.0")],
     products: [.executable(name: "XDesktop", targets: ["XDesktop"])],
     // Sparkle updates published builds from x.banast.as, as Blit, Rune and Cue are updated from theirs.
     dependencies: [.package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0")],

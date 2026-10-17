@@ -1,6 +1,6 @@
 import AppKit
-import Combine
 import Network
+import Observation
 import WebKit
 import XCore
 
@@ -21,32 +21,34 @@ struct Notice: Equatable {
     let expires: Double
 }
 
+/// Observed property by property: a view redraws only when something it reads changes.
 @MainActor
-final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKDownloadDelegate {
-    @Published private(set) var status = "Loading X"
-    @Published private(set) var loading = false
-    @Published private(set) var canGoBack = false
-    @Published private(set) var canGoForward = false
-    @Published private(set) var autoRefresh: Bool
-    @Published private(set) var pullDistance: Double = 0
-    @Published private(set) var pullArmed = false
-    @Published private(set) var pullUsesWheel = false
-    @Published private(set) var errorMessage: String?
-    @Published private(set) var lastRefresh: Date?
-    @Published private(set) var notice: Notice?
-    @Published private(set) var pageZoom: Double
+@Observable
+final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKDownloadDelegate {
+    private(set) var status = "Loading X"
+    private(set) var loading = false
+    private(set) var canGoBack = false
+    private(set) var canGoForward = false
+    private(set) var autoRefresh: Bool
+    private(set) var pullDistance: Double = 0
+    private(set) var pullArmed = false
+    private(set) var pullUsesWheel = false
+    private(set) var errorMessage: String?
+    private(set) var lastRefresh: Date?
+    private(set) var notice: Notice?
+    private(set) var pageZoom: Double
     /// False until the first document shows something, so launch never flashes an empty white view.
-    @Published private(set) var hasContent = false
+    private(set) var hasContent = false
     /// When the next automatic refresh becomes due, shown only while it is simply counting down.
     /// Published only when the deadline itself moves, so an idle window is not redrawn every tick.
-    @Published private(set) var nextRefresh: Date?
+    private(set) var nextRefresh: Date?
     /// Whether the adapter chooses Recent when Following opens.
-    @Published private(set) var followingRecent: Bool
-    @Published private(set) var pageTitle: String?
-    @Published private(set) var findVisible = false
-    @Published private(set) var findRequest = 0
-    @Published private(set) var findMissing = false
-    @Published var findQuery = ""
+    private(set) var followingRecent: Bool
+    private(set) var pageTitle: String?
+    private(set) var findVisible = false
+    private(set) var findRequest = 0
+    private(set) var findMissing = false
+    var findQuery = ""
     let webView: WKWebView
     private(set) var page = WebsiteState.empty
     private(set) var schedule: RefreshSchedule
@@ -632,7 +634,7 @@ final class BrowserModel: NSObject, ObservableObject, WKNavigationDelegate, WKUI
         if shouldRefresh { refresh(manual: false, requiresTop: true) }
     }
 
-    /// Assign only on change: every @Published write invalidates SwiftUI, even with an equal value.
+    /// Assign only on change: every write notifies observers, even with an equal value.
     private func updatePullIndicator() {
         let distance = min(pull.distance, 100)
         if pullDistance != distance { pullDistance = distance }

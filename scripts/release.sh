@@ -21,7 +21,6 @@
 #   INSTALL=1 scripts/release.sh        # …then replace /Applications/X.app (quit X first)
 #   SKIP_NOTARIZE=1 scripts/release.sh  # sign and zip only
 #   VERSION=0.3.0 …                     # the version shown (CFBundleShortVersionString; Resources/Info.plist's otherwise)
-#   ARCH=universal …                    # add an Intel slice (untested on Intel Macs)
 #   PUBLISH=1 INSTALL=1 VERSION=0.3.0 NOTES="What changed" scripts/release.sh
 #                                       # …then publish it as an update: sign the zip with Blit's key, put it in
 #                                       # site/downloads/, write site/appcast.xml, commit those two and push main
@@ -48,7 +47,6 @@ TARGET=/Applications/X.app
 SPARKLE_BIN=.build/artifacts/sparkle/Sparkle/bin
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 export DEVELOPER_DIR=${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}
-case "${ARCH:-}" in ""|universal) ;; *) echo "ARCH is empty or universal" >&2; exit 2 ;; esac
 
 # Asked first, before the build's minutes. Only ever replaces X, and never while it runs: quitting it
 # could discard an unsent post (the person quits it).
@@ -100,7 +98,7 @@ BUILD=$(date +%Y%m%d%H%M)
 VERSION=${VERSION:-$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)}
 echo "==> Building X $VERSION ($BUILD), signed by $IDENTITY for the archive"
 SIGN_IDENTITY="$IDENTITY" VERSION="$VERSION" BUILD_NUMBER="$BUILD" \
-  UPDATE_FEED="$SITE/appcast.xml" UPDATE_KEY="$PUBLIC_KEY" scripts/build-app.sh release ${ARCH:-}
+  UPDATE_FEED="$SITE/appcast.xml" UPDATE_KEY="$PUBLIC_KEY" scripts/build-app.sh release
 grep -q "^TeamIdentifier=$TEAM" <<<"$(codesign -dvv dist/X.app 2>&1)" \
   || { echo "$IDENTITY isn't team $TEAM's: set SIGN_IDENTITY to the team's Apple Development identity." >&2; exit 1; }
 

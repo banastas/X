@@ -1,5 +1,4 @@
 import AppKit
-import Combine
 import SwiftUI
 import WebKit
 import XCore
@@ -19,7 +18,7 @@ struct XDesktopMain {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSToolbarDelegate, NSMenuItemValidation {
     private var window: NSWindow!
     private var model: BrowserModel!
-    private var titleSubscription: AnyCancellable?
+    private var titleUpdates: Task<Void, Never>?
     private let updates = Updates()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -65,12 +64,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         installMenus()
         // X's title carries the unread notification count; show it on the Dock icon,
         // and name the window after the page for the Window menu and Mission Control.
-        titleSubscription = model.$pageTitle.sink { [weak self] title in
-            NSApp.dockTile.badgeLabel = PageTitle.badge(title)
-            if fixture == nil { self?.window.title = PageTitle.text(title) }
+        let model = self.model!, namesWindow = fixture == nil
+        titleUpdates = Task { [weak self] in
+            for await title in Observations({ model.pageTitle }) {
+                NSApp.dockTile.badgeLabel = PageTitle.badge(title)
+                if namesWindow { self?.window.title = PageTitle.text(title) }
+            }
         }
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         model.attach(to: window)
     }
 
@@ -289,7 +291,7 @@ private struct WebViewHost: NSViewRepresentable {
 }
 
 private struct ContentView: View {
-    @ObservedObject var model: BrowserModel
+    let model: BrowserModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var pullLabel: String {
@@ -353,7 +355,7 @@ private struct ContentView: View {
 
 /// Shown in place of the page when nothing has loaded yet, so a failed launch is not a blank window.
 private struct LoadProblem: View {
-    @ObservedObject var model: BrowserModel
+    let model: BrowserModel
 
     var body: some View {
         VStack(spacing: 10) {
@@ -369,7 +371,7 @@ private struct LoadProblem: View {
 }
 
 private struct FindBar: View {
-    @ObservedObject var model: BrowserModel
+    @Bindable var model: BrowserModel
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -395,7 +397,7 @@ private struct FindBar: View {
 }
 
 private struct ToolbarControls: View {
-    @ObservedObject var model: BrowserModel
+    let model: BrowserModel
     let navigation: Bool
 
     var body: some View {
