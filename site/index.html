@@ -94,6 +94,14 @@ h1 .gold { background: var(--gold-fill); -webkit-background-clip: text; backgrou
 .tool.off { color: #4d4d4d; }
 .tool.on { color: var(--gold); }
 .titlebar .grow { flex: 1; }
+/* macOS 27 groups toolbar items into capsules; the middle one is the feed menu. */
+.tgroup { display: flex; align-items: center; gap: 1px; height: 26px; padding: 0 5px; border-radius: 13px; background: #262626; border: 1px solid #303030; }
+.tgroup .tool { width: 20px; height: 20px; }
+.feedmenu { gap: 4px; padding: 0 10px; color: #c4c4c4; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.feedmenu svg { width: 9px; height: 9px; color: #8c8c8c; }
+/* The line keeping your place draws after a refresh, above the post you were reading. */
+.here { position: relative; height: 0; border-top: 2px solid var(--gold); }
+.here span { position: absolute; right: 12px; top: -10px; padding: 1px 7px; border-radius: 9px; background: var(--gold); color: var(--ink); font-size: 10.5px; font-weight: 600; line-height: 16px; }
 .tabs { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #262626; }
 .tabs span { position: relative; padding: 13px 0 12px; text-align: center; font-size: 14px; font-weight: 700; color: #6f6f6f; }
 .tabs span.sel { color: var(--bright); }
@@ -122,8 +130,8 @@ h1 .gold { background: var(--gold-fill); -webkit-background-clip: text; backgrou
 .note-chip { position: absolute; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: rgba(23,23,23,0.92);
   border: 1px solid var(--border); color: var(--text); font-size: 13px; font-weight: 500; box-shadow: 0 14px 30px -14px rgba(0,0,0,0.8); white-space: nowrap; }
 .note-chip b { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 4px rgba(226,181,82,0.15); }
-.note-chip.a { top: 46px; right: calc(50% + 150px); }
-.note-chip.b { top: 236px; left: calc(50% + 150px); }
+.note-chip.a { top: 306px; left: calc(50% + 150px); }
+.note-chip.b { top: 46px; left: calc(50% + 150px); }
 .note-chip.c { bottom: 18px; right: calc(50% + 140px); }
 
 /* ---------- sections ---------- */
@@ -143,6 +151,8 @@ h2 { margin: 0 0 8px; color: var(--bright); font-size: clamp(26px, 3.4vw, 34px);
 .detail { padding: 18px 20px; border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--panel); }
 .detail .label { display: block; margin-bottom: 6px; }
 .detail p { margin: 0; font-size: 15px; }
+a.inline { color: var(--bright); border-bottom: 1px solid var(--border); }
+a.inline:hover { border-bottom-color: var(--gold); }
 .disclaimer { display: flex; gap: 14px; align-items: flex-start; margin-top: 14px; padding: 18px 20px; border: 1px solid #3a3122; border-radius: var(--radius); background: #14110b; font-size: 15px; }
 .disclaimer svg { flex: none; width: 20px; height: 20px; margin-top: 2px; color: var(--gold); }
 .disclaimer p { margin: 0; }
@@ -209,15 +219,23 @@ footer nav { display: flex; gap: 18px; }
       </div>
 
       <div class="stage">
-        <div class="window" id="window" role="img" aria-label="Drawing of the app's window: the Following feed with a refresh countdown in the status strip">
+        <div class="window" id="window" role="img" aria-label="Drawing of the app's window: the Following feed, a You were here line where you left off, and a refresh countdown in the status strip">
           <div class="titlebar" aria-hidden="true">
             <span class="lights"><i></i><i></i><i></i></span>
-            <svg class="tool" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 6 8.5 11l5 5"/></svg>
-            <svg class="tool off" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8.5 6 5 5-5 5"/></svg>
-            <svg class="tool" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4.5 10.5 11 5l6.5 5.5V17h-4.2v-4h-4.6v4H4.5z"/></svg>
+            <span class="tgroup">
+              <svg class="tool" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 6 8.5 11l5 5"/></svg>
+              <svg class="tool off" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8.5 6 5 5-5 5"/></svg>
+              <svg class="tool" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4.5 10.5 11 5l6.5 5.5V17h-4.2v-4h-4.6v4H4.5z"/></svg>
+            </span>
             <span class="grow"></span>
-            <svg class="tool" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 8.2A6 6 0 1 0 17 12"/><path d="M17 4.5v4h-4"/></svg>
-            <svg class="tool on" viewBox="0 0 22 22" fill="currentColor"><circle cx="11" cy="11" r="7.5"/><path d="M11 7v4.2l2.6 1.6" stroke="#151515" stroke-width="1.7" stroke-linecap="round" fill="none"/></svg>
+            <span class="tgroup feedmenu">Following
+              <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m2.5 3.8 2.5 2.5 2.5-2.5"/></svg>
+            </span>
+            <span class="grow"></span>
+            <span class="tgroup">
+              <svg class="tool" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 8.2A6 6 0 1 0 17 12"/><path d="M17 4.5v4h-4"/></svg>
+              <svg class="tool on" viewBox="0 0 22 22" fill="currentColor"><circle cx="11" cy="11" r="7.5"/><path d="M11 7v4.2l2.6 1.6" stroke="#151515" stroke-width="1.7" stroke-linecap="round" fill="none"/></svg>
+            </span>
           </div>
           <div class="tabs" aria-hidden="true"><span>For you</span><span class="sel">Following</span></div>
           <div class="viewport" aria-hidden="true">
@@ -228,6 +246,7 @@ footer nav { display: flex; gap: 18px; }
             <div class="feed">
               <div class="post"><span class="avatar"></span><div class="lines"><i></i><i class="w90"></i><i class="w60"></i></div></div>
               <div class="post"><span class="avatar"></span><div class="lines"><i></i><i class="w90"></i><i class="w75"></i><div class="media"></div></div></div>
+              <div class="here"><span>You were here</span></div>
               <div class="post"><span class="avatar"></span><div class="lines"><i></i><i class="w75"></i></div></div>
               <div class="post"><span class="avatar"></span><div class="lines"><i></i><i class="w90"></i><i class="w60"></i></div></div>
               <div class="post"><span class="avatar"></span><div class="lines"><i></i><i class="w90"></i></div></div>
@@ -235,8 +254,8 @@ footer nav { display: flex; gap: 18px; }
           </div>
           <div class="statusbar" aria-hidden="true"><span id="status">Next refresh in 9s · Refreshed 9:41 AM</span></div>
         </div>
-        <span class="note-chip a" aria-hidden="true"><b></b>Recent on every load</span>
-        <span class="note-chip b" aria-hidden="true"><b></b>Waits while you read</span>
+        <span class="note-chip a" aria-hidden="true"><b></b>Keeps your place</span>
+        <span class="note-chip b" aria-hidden="true"><b></b>Switch feeds, or go Home</span>
         <span class="note-chip c" aria-hidden="true"><b></b>Counts down, then refreshes</span>
       </div>
     </div>
@@ -302,7 +321,7 @@ footer nav { display: flex; gap: 18px; }
     <div class="wrap">
       <div class="section-head">
         <h2 id="keys-title">Keyboard shortcuts</h2>
-        <p>Every toolbar button has a keyboard shortcut, and so does each feed.</p>
+        <p>Every toolbar button has a keyboard shortcut, and so does each feed and Settings.</p>
       </div>
       <div class="keys">
         <div class="key"><span>Refresh now</span><span><kbd>⌘</kbd><kbd>R</kbd></span></div>
@@ -314,6 +333,9 @@ footer nav { display: flex; gap: 18px; }
         <div class="key"><span>Back · Forward</span><span><kbd>⌘</kbd><kbd>[</kbd><kbd>]</kbd></span></div>
         <div class="key"><span>Find on page</span><span><kbd>⌘</kbd><kbd>F</kbd></span></div>
         <div class="key"><span>Copy link</span><span><kbd>⇧</kbd><kbd>⌘</kbd><kbd>C</kbd></span></div>
+        <div class="key"><span>Settings</span><span><kbd>⌘</kbd><kbd>,</kbd></span></div>
+        <div class="key"><span>Text size</span><span><kbd>⌘</kbd><kbd>+</kbd><kbd>−</kbd><kbd>0</kbd></span></div>
+        <div class="key"><span>Full screen</span><span><kbd>⌃</kbd><kbd>⌘</kbd><kbd>F</kbd></span></div>
       </div>
     </div>
   </section>
@@ -328,6 +350,8 @@ footer nav { display: flex; gap: 18px; }
         <div class="detail"><span class="label">Install</span><p>Unzip it, move X to Applications, and open it. Sign in to X in the window.</p></div>
         <div class="detail"><span class="label">Updates</span><p>Checks this site once a day and asks before installing. X › Check for Updates… checks now.</p></div>
         <div class="detail"><span class="label">Signed</span><p>Signed with Developer ID and notarized by Apple.</p></div>
+        <div class="detail"><span class="label">Privacy</span><p>No telemetry and no account of its own. The only request the app makes itself is the daily update check, and notifications say only how many are unread.</p></div>
+        <div class="detail"><span class="label">Source</span><p>The code is on GitHub at <a class="inline" href="https://github.com/banastas/X">github.com/banastas/X</a>, where you can also report a problem.</p></div>
       </div>
       <div class="disclaimer">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 9v5M10 6h.01"/></svg>
@@ -353,7 +377,7 @@ footer nav { display: flex; gap: 18px; }
 <footer>
   <div class="wrap">
     <span>X for macOS · © 2026 banast.as · From the maker of <a href="https://blit.banast.as/">Blit</a>, <a href="https://rune.banast.as/">Rune</a> and <a href="https://cue.banast.as/">Cue</a></span>
-    <nav><a href="appcast.xml">Update feed</a><a href="mailto:me@banast.as">Contact</a></nav>
+    <nav><a href="https://github.com/banastas/X">GitHub</a><a href="appcast.xml">Update feed</a><a href="mailto:me@banast.as">Contact</a></nav>
   </div>
 </footer>
 
