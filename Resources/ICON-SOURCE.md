@@ -2,9 +2,9 @@
 
 ## Current icon: gold X
 
-`x-gold-icon.png` is the bundled icon artwork source. It was generated with OpenAI image generation using `x-site-icon.png` as the edit target, placing the X logo over photoreal gold. The packaged icon was checked visually in the app's About panel.
+`x-gold-icon.png` is the bundled icon artwork source. It was generated with OpenAI image generation using X's official website icon as the edit target, placing the X logo over photoreal gold. The packaged icon was checked visually in the app's About panel.
 
-The build invokes `scripts/render-icon.swift` to draw the unchanged local artwork into a rounded tile measuring 824 by 824 points on a transparent 1024 by 1024 canvas, scaled for each icon resolution. The 100-point outer margins correct the oversized Dock footprint of version 0.1.1. The corner radius is 22% of tile width. `iconutil` packages the resulting sizes as `AppIcon.icns`. The original website and generated gold assets are preserved separately. No regenerated artwork was adopted for the sizing fix.
+The build invokes `scripts/render-icon.swift` to draw the unchanged local artwork into a rounded tile measuring 824 by 824 points on a transparent 1024 by 1024 canvas, scaled for each icon resolution. The 100-point outer margins correct the oversized Dock footprint of version 0.1.1. The corner radius is 22% of tile width. `iconutil` packages the resulting sizes as `AppIcon.icns`. The generated gold asset is preserved separately. No regenerated artwork was adopted for the sizing fix.
 
 ### Exact final prompt
 
@@ -14,10 +14,10 @@ Use case: precise-object-edit. Asset type: a production macOS app icon, 1024x102
 
 ## Original reference
 
-The original 1024 by 1024 PNG, `x-site-icon.png`, was retrieved from X's official website CDN:
+The edit target was X's official 1024 by 1024 website icon, retrieved from X's CDN. It is X Corp's artwork, so it is not kept in this repository (removed 2026-10-17; earlier commits still contain it):
 
 https://abs.twimg.com/responsive-web/client-web/icon-ios.77d25eb62d3da71ba.png
 
 This URL was discovered in the `apple-touch-icon` link in the HTML served by X on September 11, 2026.
 
-The X name and branding belong to their respective owner. This is an independent, unofficial wrapper. This source attribution does not establish permission for public distribution.
+The X name and branding belong to their respective owner. This is an independent, unofficial wrapper. This source attribution does not establish permission for public distribution. The [MIT license](../LICENSE) does not cover `x-gold-icon.png` or images made from it; see [NOTICE.md](../NOTICE.md).

@@ -101,7 +101,7 @@ Each installation uses its own local WebKit website data and the account signed 
 
 The app does not extract credentials, save posts to a database, add telemetry, or automate engagement. Published builds make one request of their own: a daily fetch of the update feed from x.banast.as, without Sparkle's optional system profile. An isolated website script reports limited UI state—booleans, a feed index, and short status descriptions—to the native app. It also restores the selected feed, chooses Recent once per document when Following opens (unless you turn that off), and, when you choose **Save Image to Downloads**, returns the address of the image under the pointer. Before a reload while you are scrolled down, it returns the status number of the post at the top of the screen, so the app can bring it back; that number stays in memory and is never saved. It also uses X's own **Show N posts** button when X offers one. The Dock badge, window title and unread notifications come from the page title that WebKit already exposes to the app; a notification says only how many are unread. **Help → Copy Diagnostics** copies the app and macOS versions, settings, the adapter's flags and recent status lines, with no addresses, account names or post content. If X’s sort menu cannot be recognized, the status strip explains that you need to select Recent manually. X's website still makes its own network requests and follows X's own data practices.
 
-The repository contains source, synthetic test fixtures, documentation, and icon assets. Build output and local app bundles are excluded from Git. Do not include website-data folders, cookies, credentials, or private screenshots in bug reports.
+The repository contains source, synthetic test fixtures, documentation, and the app's icon artwork (not covered by the license; see [NOTICE.md](NOTICE.md)). Build output and local app bundles are excluded from Git. Do not include website-data folders, cookies, credentials, or private screenshots in bug reports.
 
 ## Build from source
 
@@ -258,7 +258,7 @@ PUBLISH=1 INSTALL=1 VERSION=0.4.1 NOTES="What changed" scripts/release.sh   # �
 | `Sources/XCore` | Refresh scheduling, gesture recognition, and URL policy |
 | `Sources/XDesktop` | Native interface, WebKit coordination, and isolated website adapter |
 | `Tests` | Deterministic tests and WebKit fixture checks |
-| `Resources` | App metadata and [icon provenance](Resources/ICON-SOURCE.md) |
+| `Resources` | App metadata, entitlements, and [icon provenance](Resources/ICON-SOURCE.md) |
 | `scripts/build-app.sh` | Local app packaging and signature verification |
 | `scripts/release.sh` | Developer ID build, notarization, and publishing an update |
 | `site` | The x.banast.as page, update feed, and current download |
@@ -271,4 +271,6 @@ X can change its website or login requirements without notice. The app does not 
 
 [X's automation rules](https://help.x.com/en/rules-and-policies/x-automation) prohibit non-API website automation. They do not explicitly approve this app's timed reloads. The one-minute default is a usability choice, not a documented exemption or assurance against account enforcement. Longer intervals in Settings, and using X's own Show posts button when it is offered, mean fewer full reloads.
 
-X's name and marks belong to their respective owner. The included attribution does not establish permission to redistribute those marks. A source-code license has not yet been selected; making a repository viewable does not itself grant an open-source license. See [GitHub's licensing explanation](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository).
+## License
+
+The source code is available under the [MIT license](LICENSE). It does not cover X's name, logo, or other marks, which belong to X Corp, or the app icon artwork and the images made from it, which are an edit of X's logo. [NOTICE.md](NOTICE.md) lists what's excluded. If you redistribute a build, replace the icon with your own artwork. Sparkle, the one bundled dependency, keeps its own MIT-style license.
