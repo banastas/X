@@ -1,0 +1,10 @@
+# Cloudflare Pages headers. Unlisted: nothing here is for search engines.
+/*
+  X-Robots-Tag: noindex, nofollow
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+
+# Installed copies check this daily: always the current one.
+/appcast.xml
+  Cache-Control: no-cache

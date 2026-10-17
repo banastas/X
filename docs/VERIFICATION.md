@@ -16,6 +16,18 @@ Interface and functionality additions: Stop while loading (toolbar and `⌘.`), 
 
 Not yet verified by hand: the “Not found” and Escape behavior of the find bar, `⌥⌘2`, Save Image against live X media, the Dock badge with real notifications, the confirmation sheets with a live draft, the Stop button, the offline launch state, and reconnect retry. None of these changes has been checked against the live website.
 
+## Updates through Sparkle (unreleased)
+
+Published builds now update the way Blit, Rune and Cue do: Sparkle 2.10.0, a daily check of `https://x.banast.as/appcast.xml`, and updates signed with the family's EdDSA key. `scripts/release.sh` makes them (Developer ID, hardened runtime, notarization, publishing to `site/`), and Cloudflare Pages serves `site/` at x.banast.as. Only builds made by `release.sh` carry the feed, and the updater starts only in a Release build installed in an Applications folder (`UpdatePolicy`, `Updates`).
+
+- All **76 XCTest tests passed with zero failures** (46 desktop/WebKit and 30 core), including a new `UpdatePolicy` test: no feed, an `http` feed, or a copy outside Applications never updates.
+- `scripts/build-app.sh` bundles `Sparkle.framework` and signs its helpers from the inside out. It removes SwiftPM's absolute rpaths into `.build`, leaving `@executable_path/../Frameworks`. A source build has no `SUFeedURL` and an ad hoc signature, and passes `codesign --verify --deep --strict`.
+- The debug bundle launched in fixture mode and loaded Sparkle from its own `Contents/Frameworks`.
+- `scripts/release.sh` stops with an explanation when the Keychain has no Developer ID Application certificate for team F87BNUZAVJ (this Mac has none yet). Run with the Apple Development identity and `SKIP_NOTARIZE=1`, it produced a hardened-runtime build: secure timestamp, the camera and microphone entitlements, team F87BNUZAVJ, `SUFeedURL`, `SUPublicEDKey`, version 0.3.0 and a time-based build number. It then stopped at its Developer ID check, as intended.
+- The site page was checked in a browser from the file. Its Download button stays off until `appcast.xml` exists.
+
+Not yet done: a Developer ID certificate on this Mac, the Cloudflare Pages project and the x.banast.as domain, notarization, the first published release, and a real update from one published build to the next.
+
 ## Following sort default (0.2.1)
 
 On September 30, 2026, the live Following view showed the welcome empty state while the account remained signed in. Selecting Recent restored posts, but a manual page reload changed the sort back to Popular. Version 0.2.1 selects Recent once per document through X's own dropdown when Following opens. Later manual choices remain effective until the next document load.

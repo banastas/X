@@ -16,7 +16,7 @@ Built with Swift, SwiftUI, AppKit, and WebKit. This project is independent of X 
 
 The app displays X's website inside Apple's `WKWebView`; it does not recreate the timeline or fetch posts through the X API. There is no hosted backend, API key, or app-managed post database. You sign into your own X account, and X controls the content and recommendations you see. A reload may reset your reading position and does not guarantee new posts.
 
-**Current version: 0.2.1.** See [verification](docs/VERIFICATION.md) for automated coverage and live checks of the Following sort default. Core browsing and refresh behavior were checked during 0.1.x; the other 0.2.0 fixes remain covered by local fixture tests. This is a locally built app, not an App Store or notarized release.
+**Current version: 0.2.1.** See [verification](docs/VERIFICATION.md) for automated coverage and live checks of the Following sort default. Core browsing and refresh behavior were checked during 0.1.x; the other 0.2.0 fixes remain covered by local fixture tests. Copies you build from source are ad hoc signed and never update themselves. Published builds, once a release is out, are signed with Developer ID, notarized, and offered at [x.banast.as](https://x.banast.as) (see [Published builds and updates](#published-builds-and-updates)). There is no App Store release.
 
 ## Requirements
 
@@ -25,7 +25,7 @@ The app displays X's website inside Apple's `WKWebView`; it does not recreate th
 - An internet connection and your own X account for the signed-in feeds.
 - Terminal for the build steps below. Git and the other required build tools are supplied by Xcode.
 
-There are no external Swift package dependencies. Node.js, Python, Homebrew, an X developer account, and a paid Apple Developer membership are not required for this local build.
+The one external Swift package is [Sparkle](https://sparkle-project.org) 2.10.0, which SwiftPM fetches on the first build (pinned in `Package.resolved`); it is bundled for published builds' updates and stays inactive in source builds. Node.js, Python, Homebrew, an X developer account, and a paid Apple Developer membership are not required for this local build.
 
 ## Set up your own copy
 
@@ -153,7 +153,15 @@ scripts/build-app.sh
 
 If any step fails, stop and resolve it before replacing the installed app. Copy the new `dist/X.app` over your previous build in Finder, then open the installed copy. With the same bundle identifier, replacing the app normally preserves preferences and WebKit website data; X can still expire your login independently.
 
-If you have local source changes and Git refuses the update, review and preserve them before retrying. There is no automatic updater.
+If you have local source changes and Git refuses the update, review and preserve them before retrying. A copy you build from source has no automatic updater.
+
+## Published builds and updates
+
+Published builds come from [x.banast.as](https://x.banast.as), an unlisted page. Download the zip, unzip it, and move `X.app` to Applications (`/Applications` or your home folder's Applications). It uses the same bundle identifier as source builds, so it keeps your sign-in and preferences.
+
+A published copy in Applications checks `https://x.banast.as/appcast.xml` once a day and asks before installing an update. **X → Check for Updates…** checks now, and **X → Check for Updates Automatically** turns the daily check off. Updates use [Sparkle](https://sparkle-project.org): each download must carry an EdDSA signature from the maintainer's key, and the app must be signed by the same Developer ID team. Quitting to install still asks first if you have an unsent post.
+
+Debug builds, and any copy built with `scripts/build-app.sh`, carry no update feed and never show those menu items.
 
 To uninstall, quit X and move the installed app to Trash. Removing the app does not automatically erase its saved preferences or website data. Use X's own sign-out control first if you want to end the current login.
 
@@ -177,7 +185,7 @@ To uninstall, quit X and move the installed app to Trash. Removing the app does 
 
 Each installation uses its own local WebKit website data and the account signed in on that Mac. Preferences retain the automatic-refresh setting, the Following sort default, selected feed, page zoom, and window geometry. Downloads started from the website are saved to your Downloads folder. The app's bundle identifier is `as.banast.xdesktop`; it identifies the application and does not connect users to the maintainer's X account.
 
-The app does not extract credentials, save posts to a database, add telemetry, or automate engagement. An isolated website script reports limited UI state—booleans, a feed index, and short status descriptions—to the native app. It also restores the selected feed, chooses Recent once per document when Following opens (unless you turn that off), and, when you choose **Save Image to Downloads**, returns the address of the image under the pointer. The Dock badge and window title come from the page title that WebKit already exposes to the app. If X’s sort menu cannot be recognized, the status strip explains that you need to select Recent manually. X's website still makes its own network requests and follows X's own data practices.
+The app does not extract credentials, save posts to a database, add telemetry, or automate engagement. Published builds make one request of their own: a daily fetch of the update feed from x.banast.as, without Sparkle's optional system profile. An isolated website script reports limited UI state—booleans, a feed index, and short status descriptions—to the native app. It also restores the selected feed, chooses Recent once per document when Following opens (unless you turn that off), and, when you choose **Save Image to Downloads**, returns the address of the image under the pointer. The Dock badge and window title come from the page title that WebKit already exposes to the app. If X’s sort menu cannot be recognized, the status strip explains that you need to select Recent manually. X's website still makes its own network requests and follows X's own data practices.
 
 The repository contains source, synthetic test fixtures, documentation, and icon assets. Build output and local app bundles are excluded from Git. Do not include website-data folders, cookies, credentials, or private screenshots in bug reports.
 
@@ -207,7 +215,19 @@ plutil -lint dist/X.app/Contents/Info.plist
 git diff --check
 ```
 
-The packaging script already treats compiler warnings as errors and verifies the generated signature. Tests cover refresh scheduling, gestures, URL handling, the real WebKit adapter with local fixtures, and browser-model reload behavior.
+The packaging script already treats compiler warnings as errors, bundles Sparkle in `Contents/Frameworks`, and verifies the generated signature.
+
+### Releasing (maintainer)
+
+`scripts/release.sh` makes a published build: it runs the tests, builds with a Developer ID Application certificate for the team (hardened runtime, `Resources/X.entitlements`), adds the update feed and public key to Info.plist, notarizes with the `blit-notary` Keychain profile, staples, and zips into `dist/release/`. It numbers each build by the time (YYYYMMDDHHMM). The comments at the top of the script list the one-time setup: the certificate, the notary profile, the Sparkle key and the Cloudflare Pages project.
+
+```sh
+scripts/release.sh                                                    # build, notarize, staple
+INSTALL=1 scripts/release.sh                                          # …and replace /Applications/X.app
+PUBLISH=1 INSTALL=1 VERSION=0.3.0 NOTES="What changed" scripts/release.sh   # …and publish it
+```
+
+`PUBLISH=1` runs only on a clean `main`. It signs the zip with the family's Sparkle key (the same as Blit, Rune and Cue), writes `site/appcast.xml` and `site/downloads/`, commits them and pushes `main`; Cloudflare Pages then serves `site/` at x.banast.as. Publishing makes the download public. See [site/README.md](site/README.md) for hosting. Tests cover refresh scheduling, gestures, URL handling, the real WebKit adapter with local fixtures, and browser-model reload behavior.
 
 | Path | Purpose |
 | --- | --- |
@@ -216,6 +236,8 @@ The packaging script already treats compiler warnings as errors and verifies the
 | `Tests` | Deterministic tests and WebKit fixture checks |
 | `Resources` | App metadata and [icon provenance](Resources/ICON-SOURCE.md) |
 | `scripts/build-app.sh` | Local app packaging and signature verification |
+| `scripts/release.sh` | Developer ID build, notarization, and publishing an update |
+| `site` | The x.banast.as page, update feed, and current download |
 | `docs/SPEC.md` | Product behavior and acceptance criteria |
 | `docs/VERIFICATION.md` | Tested behavior and remaining acceptance work |
 
