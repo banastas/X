@@ -23,10 +23,10 @@ Published builds now update the way Blit, Rune and Cue do: Sparkle 2.10.0, a dai
 - All **76 XCTest tests passed with zero failures** (46 desktop/WebKit and 30 core), including a new `UpdatePolicy` test: no feed, an `http` feed, or a copy outside Applications never updates.
 - `scripts/build-app.sh` bundles `Sparkle.framework` and signs its helpers from the inside out. It removes SwiftPM's absolute rpaths into `.build`, leaving `@executable_path/../Frameworks`. A source build has no `SUFeedURL` and an ad hoc signature, and passes `codesign --verify --deep --strict`.
 - The debug bundle launched in fixture mode and loaded Sparkle from its own `Contents/Frameworks`.
-- `scripts/release.sh` stops with an explanation when the Keychain has no Developer ID Application certificate for team F87BNUZAVJ (this Mac has none yet). Run with the Apple Development identity and `SKIP_NOTARIZE=1`, it produced a hardened-runtime build: secure timestamp, the camera and microphone entitlements, team F87BNUZAVJ, `SUFeedURL`, `SUPublicEDKey`, version 0.3.0 and a time-based build number. It then stopped at its Developer ID check, as intended.
+- `scripts/release.sh` signs with the family's cloud-managed Developer ID certificate. It builds with the team's Apple Development identity, wraps the app in an Xcode archive, and exports it with `xcodebuild -exportArchive` (developer-id, automatic signing), as Cue does. A run with `SKIP_NOTARIZE=1 SKIP_TESTS=1 VERSION=0.3.0` exported an app signed `Developer ID Application: William T Anastas (F87BNUZAVJ)`. The app, the framework, and Sparkle's Installer and Downloader services, Autoupdate and Updater.app each kept the hardened runtime and a secure timestamp. The app kept the camera and microphone entitlements, `SUFeedURL`, `SUPublicEDKey`, version 0.3.0 and a time-based build number. The script checks each of these before it notarizes.
 - The site page was checked in a browser from the file. Its Download button stays off until `appcast.xml` exists.
 
-Not yet done: a Developer ID certificate on this Mac, the Cloudflare Pages project and the x.banast.as domain, notarization, the first published release, and a real update from one published build to the next.
+Not yet done: notarization, the first published release, and a real update from one published build to the next.
 
 ## Following sort default (0.2.1)
 

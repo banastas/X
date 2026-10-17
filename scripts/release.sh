@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # release.sh — builds X.app signed with Developer ID, notarizes it with Apple, staples the ticket and zips it;
 # INSTALL=1 puts it in /Applications, PUBLISH=1 publishes it as an update on x.banast.as. It follows Cue's
-# scripts/release.sh (Blit's by way of Rune's). X is a Swift package rather than an Xcode project, so it signs
-# through scripts/build-app.sh with codesign instead of an Xcode export.
+# scripts/release.sh (Blit's by way of Rune's). X is a Swift package rather than an Xcode project, so
+# scripts/build-app.sh builds and signs the app with the team's Apple Development identity (hardened runtime and
+# Resources/X.entitlements), this script wraps it in an Xcode archive, and Xcode's export signs it with the team's
+# Developer ID certificate: the same cloud-managed one Blit, Rune and Cue use, whose private key stays with Apple.
 #
 # What it needs, once (your steps: they're your account's):
-#   - A Developer ID Application certificate for team F87BNUZAVJ in this Mac's Keychain:
-#       Xcode › Settings › Accounts › (the team) › Manage Certificates… › + › Developer ID Application
-#     (codesign can't use the cloud-managed certificate an Xcode export would.)
+#   - Xcode signed in to the team's account (Xcode › Settings › Accounts), as for the other apps, and an Apple
+#     Development certificate for team F87BNUZAVJ in this Mac's Keychain (Xcode makes one when you sign in).
 #   - Notary credentials in the Keychain. Blit's are the team's and work for X too, as for Rune and Cue:
 #       xcrun notarytool store-credentials blit-notary --apple-id you@example.com --team-id F87BNUZAVJ
 #   - For PUBLISH: the family's Sparkle key in this Mac's Keychain, Blit's (Sparkle's default account), which
@@ -26,7 +27,7 @@
 #                                       # site/downloads/, write site/appcast.xml, commit those two and push main
 #                                       # (Cloudflare Pages deploys site/ to x.banast.as)
 #
-# Environment: SIGN_IDENTITY (the Keychain's Developer ID Application identity for the team otherwise),
+# Environment: SIGN_IDENTITY (the Keychain's Apple Development identity otherwise; it must be the team's),
 # NOTARY_PROFILE (default blit-notary), OUT (default dist/release), SKIP_TESTS=1 (skip swift test)
 #
 # Its build number is the time (YYYYMMDDHHMM), as Rune's and Cue's are: above source builds' number, so macOS
@@ -74,9 +75,9 @@ if [[ "${PUBLISH:-0}" == 1 ]]; then
 fi
 
 IDENTITY=${SIGN_IDENTITY:-$(security find-identity -v -p codesigning |
-  sed -n "s/.*\"\(Developer ID Application: .*($TEAM)\)\"/\1/p" | head -1)}
+  sed -n 's/.*"\(Apple Development: .*\)"/\1/p' | head -1)}
 if [[ -z $IDENTITY ]]; then
-  echo "No Developer ID Application certificate for team $TEAM in the Keychain (see the top of this script)." >&2
+  echo "No Apple Development certificate in the Keychain: sign in to the team in Xcode › Settings › Accounts." >&2
   exit 1
 fi
 
@@ -97,18 +98,67 @@ fi
 
 BUILD=$(date +%Y%m%d%H%M)
 VERSION=${VERSION:-$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)}
-echo "==> Building X $VERSION ($BUILD), signed by $IDENTITY"
+echo "==> Building X $VERSION ($BUILD), signed by $IDENTITY for the archive"
 SIGN_IDENTITY="$IDENTITY" VERSION="$VERSION" BUILD_NUMBER="$BUILD" \
   UPDATE_FEED="$SITE/appcast.xml" UPDATE_KEY="$PUBLIC_KEY" scripts/build-app.sh release ${ARCH:-}
+grep -q "^TeamIdentifier=$TEAM" <<<"$(codesign -dvv dist/X.app 2>&1)" \
+  || { echo "$IDENTITY isn't team $TEAM's: set SIGN_IDENTITY to the team's Apple Development identity." >&2; exit 1; }
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
+# An Xcode archive is a folder: the app under Products/Applications and an Info.plist describing it.
+ARCHIVE="$OUT/X.xcarchive"
+mkdir -p "$ARCHIVE/Products/Applications"
+ditto dist/X.app "$ARCHIVE/Products/Applications/X.app"
+cat > "$ARCHIVE/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>ApplicationProperties</key>
+  <dict>
+    <key>ApplicationPath</key><string>Applications/X.app</string>
+    <key>Architectures</key><array>$(for arch in $(lipo -archs dist/X.app/Contents/MacOS/XDesktop); do printf '<string>%s</string>' "$arch"; done)</array>
+    <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
+    <key>CFBundleShortVersionString</key><string>$VERSION</string>
+    <key>CFBundleVersion</key><string>$BUILD</string>
+    <key>SigningIdentity</key><string>$IDENTITY</string>
+    <key>Team</key><string>$TEAM</string>
+  </dict>
+  <key>ArchiveVersion</key><integer>2</integer>
+  <key>CreationDate</key><date>$(date -u +%Y-%m-%dT%H:%M:%SZ)</date>
+  <key>Name</key><string>X</string>
+  <key>SchemeName</key><string>XDesktop</string>
+</dict>
+</plist>
+PLIST
+cat > "$OUT/ExportOptions.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key><string>developer-id</string>
+  <key>teamID</key><string>$TEAM</string>
+  <key>signingStyle</key><string>automatic</string>
+</dict>
+</plist>
+PLIST
+
+echo "==> Exporting with Developer ID"
+xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$OUT/ExportOptions.plist" \
+  -exportPath "$OUT" -allowProvisioningUpdates -quiet
 APP="$OUT/X.app"
-ditto dist/X.app "$APP"
+codesign --verify --deep --strict "$APP"
 SIGNED=$(codesign -dvv "$APP" 2>&1)   # -vv: the authorities (-v shows none)
 grep -E "^Authority=Developer ID|^TeamIdentifier|runtime" <<<"$SIGNED" || true
 grep -q "^Authority=Developer ID Application" <<<"$SIGNED" || { echo "Not signed with Developer ID: stopping." >&2; exit 1; }
 grep -q "^TeamIdentifier=$TEAM" <<<"$SIGNED" || { echo "Not signed by team $TEAM: stopping." >&2; exit 1; }
+# Notarization needs the hardened runtime; the website's camera and microphone need the entitlements.
+grep -q "flags=.*runtime" <<<"$SIGNED" || { echo "The export dropped the hardened runtime: stopping." >&2; exit 1; }
+ENTITLEMENTS=$(codesign -d --entitlements - "$APP" 2>/dev/null)
+for key in com.apple.security.device.camera com.apple.security.device.audio-input; do
+  grep -q "$key" <<<"$ENTITLEMENTS" || { echo "The export dropped $key: stopping." >&2; exit 1; }
+done
 [[ $(/usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$APP/Contents/Info.plist") == "$SITE/appcast.xml" ]] \
   || { echo "The app's SUFeedURL isn't $SITE/appcast.xml: stopping." >&2; exit 1; }
 

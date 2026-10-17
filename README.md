@@ -219,7 +219,7 @@ The packaging script already treats compiler warnings as errors, bundles Sparkle
 
 ### Releasing (maintainer)
 
-`scripts/release.sh` makes a published build: it runs the tests, builds with a Developer ID Application certificate for the team (hardened runtime, `Resources/X.entitlements`), adds the update feed and public key to Info.plist, notarizes with the `blit-notary` Keychain profile, staples, and zips into `dist/release/`. It numbers each build by the time (YYYYMMDDHHMM). The comments at the top of the script list the one-time setup: the certificate, the notary profile, the Sparkle key and the Cloudflare Pages project.
+`scripts/release.sh` makes a published build. It runs the tests, then builds and signs with the team's Apple Development identity (hardened runtime, `Resources/X.entitlements`) and adds the update feed and public key to Info.plist. Next it wraps the app in an Xcode archive, and Xcode's export signs it with the team's cloud-managed Developer ID certificate, the same one Blit, Rune and Cue use. Finally it notarizes with the `blit-notary` Keychain profile, staples the ticket, and zips into `dist/release/`. It numbers each build by the time (YYYYMMDDHHMM). The comments at the top of the script list the one-time setup: Xcode signed in to the team, the notary profile, the Sparkle key and the Cloudflare Pages project.
 
 ```sh
 scripts/release.sh                                                    # build, notarize, staple
