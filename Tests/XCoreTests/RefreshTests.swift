@@ -225,3 +225,18 @@ final class PageTitleTests: XCTestCase {
         }
     }
 }
+
+final class UpdatePolicyTests: XCTestCase {
+    private let feed = "https://x.banast.as/appcast.xml"
+
+    func testOnlyPublishedBuildsInApplicationsUpdate() {
+        XCTAssertTrue(UpdatePolicy.runsUpdater(bundlePath: "/Applications/X.app", feedURL: feed, homeDirectory: "/Users/a"))
+        XCTAssertTrue(UpdatePolicy.runsUpdater(bundlePath: "/Users/a/Applications/X.app", feedURL: feed, homeDirectory: "/Users/a/"))
+        XCTAssertFalse(UpdatePolicy.runsUpdater(bundlePath: "/Applications/X.app", feedURL: nil, homeDirectory: "/Users/a"),
+                       "A copy built from source has no feed")
+        XCTAssertFalse(UpdatePolicy.runsUpdater(bundlePath: "/Applications/X.app", feedURL: "http://x.banast.as/appcast.xml", homeDirectory: "/Users/a"))
+        for path in ["/Users/a/Developer/X/dist/X.app", "/Applications Old/X.app", "/Users/b/Applications/X.app"] {
+            XCTAssertFalse(UpdatePolicy.runsUpdater(bundlePath: path, feedURL: feed, homeDirectory: "/Users/a"), path)
+        }
+    }
+}

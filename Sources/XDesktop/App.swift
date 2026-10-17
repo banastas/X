@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     private var window: NSWindow!
     private var model: BrowserModel!
     private var titleSubscription: AnyCancellable?
+    private let updates = Updates()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         var fixture: URL?
@@ -111,6 +112,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     @objc private func findNext() { model.findNext() }
     @objc private func findPrevious() { model.findNext(backwards: true) }
     @objc private func toggleAutomatic() { model.toggleAutomatic() }
+    @objc private func checkForUpdates() { updates.checkNow() }
+    @objc private func toggleAutomaticUpdates() { updates.checksAutomatically.toggle() }
     @objc private func zoomIn() { model.zoomIn() }
     @objc private func zoomOut() { model.zoomOut() }
     @objc private func actualSize() { model.resetZoom() }
@@ -135,6 +138,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             return true
         case #selector(toggleAutomatic):
             menuItem.title = model.autoRefresh ? "Pause Auto-refresh" : "Resume Auto-refresh"
+            return true
+        case #selector(checkForUpdates): return updates.canCheck
+        case #selector(toggleAutomaticUpdates):
+            menuItem.state = updates.checksAutomatically ? .on : .off
             return true
         case #selector(zoomIn): return model.canZoomIn
         case #selector(zoomOut): return model.canZoomOut
@@ -181,6 +188,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
 
         let appMenu = submenu("X", in: menu)
         _ = add("About X", #selector(NSApplication.orderFrontStandardAboutPanel(_:)), to: appMenu)
+        // Only published builds installed in Applications have an updater (Updates).
+        if updates.isAvailable {
+            _ = add("Check for Updates…", #selector(checkForUpdates), to: appMenu, target: self)
+            _ = add("Check for Updates Automatically", #selector(toggleAutomaticUpdates), to: appMenu, target: self)
+        }
         appMenu.addItem(.separator())
         NSApp.servicesMenu = submenu("Services", in: appMenu)
         appMenu.addItem(.separator())

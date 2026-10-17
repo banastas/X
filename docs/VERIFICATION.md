@@ -1,5 +1,21 @@
 # Verification: X 0.2.1
 
+## QA fixes and improvements (unreleased)
+
+An October 17, 2026 code review found two adapter failure modes. Both were reproduced against local fixtures before they were fixed:
+
+- **An unrecognized Following sort menu stayed open.** With localized options (“Recientes” / “Populares”), the adapter opened the menu, could not identify Recent, and left the menu open at its five-second deadline. An open menu reports recent activity on every heartbeat, which held automatic refresh back indefinitely. The adapter now closes a menu that appeared after its own click unless the reader has pressed something since. The Recent default can also be turned off (**View → Default Following to Recent**).
+- **Feed restoration clicked only once.** If X ignored the first click on the saved feed's tab, for example before its handlers attached, the load never settled and failed at the 45-second timeout. Restoration now retries every half second for up to ten seconds. A feed the reader chooses during the load wins, and a restoration that gives up completes the load with a status message instead of an error.
+
+Interface and functionality additions: Stop while loading (toolbar and `⌘.`), a full-window error state with **Try Again** when nothing has loaded, an immediate retry when a lost network connection returns, a refresh countdown in the status strip, **Save Image to Downloads** in the context menu (original size for X media), the unread count as a Dock badge, the page title as the window title, window-attached sheets for confirmations and website alerts, a Forward toolbar button, find-in-page (`⌘F`, `⌘G`, `⇧⌘G`), **Copy Link** and **Open in Browser**, For you / Following shortcuts (`⌥⌘1` / `⌥⌘2`), a slower adapter heartbeat while the window cannot be seen, and a status notice for clicked links with unsupported schemes.
+
+- All **75 XCTest tests passed with zero failures** (46 desktop/WebKit and 29 core tests), including 12 new ones.
+- New regressions cover the localized sort menu closing at its deadline, turning the Recent default off, restoration retrying through late tab hydration (adapter and model), menu feed selection counting as the reader's choice, image lookup beneath a point, Stop ending a stalled load without an error, the countdown appearing only while auto-refresh counts down, the unsupported-scheme notice, persistence of the Recent preference, Dock-badge title parsing, and original-size media URLs.
+- Release and debug builds passed with warnings treated as errors.
+- A debug fixture launch was inspected through window screenshots: the Forward button, the countdown (“Next refresh in 53s · Refreshed 06:31”), and the find bar highlighting a match.
+
+Not yet verified by hand: the “Not found” and Escape behavior of the find bar, `⌥⌘2`, Save Image against live X media, the Dock badge with real notifications, the confirmation sheets with a live draft, the Stop button, the offline launch state, and reconnect retry. None of these changes has been checked against the live website.
+
 ## Following sort default (0.2.1)
 
 On September 30, 2026, the live Following view showed the welcome empty state while the account remained signed in. Selecting Recent restored posts, but a manual page reload changed the sort back to Popular. Version 0.2.1 selects Recent once per document through X's own dropdown when Following opens. Later manual choices remain effective until the next document load.
