@@ -9,7 +9,7 @@
 <!-- Cloudflare Pages serves this, with a 404, for any path the site doesn't have. Without it, a missing path gets
      index.html with a 200: appcast.xml before the first release would be a page Sparkle can't read (Rune's lesson).
      Absolute paths: it can be served from any depth. -->
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/icon-64.png" type="image/png" sizes="64x64">
 <style>
 :root { --bg: #0a0a0a; --border: #2b2b2b; --bright: #f0f0f0; --dim: #7d7d7d; --text: #c4c4c4; --gutter: 16px; }
 * { box-sizing: border-box; }
@@ -19,14 +19,15 @@ a { color: var(--bright); text-decoration: none; border-bottom: 1px solid var(--
 .wrap { max-width: 860px; width: 100%; margin: 0 auto; padding: 0 var(--gutter); }
 header { border-bottom: 1px solid var(--border); }
 header .wrap { display: flex; align-items: center; height: 48px; }
-header a { border: 0; font-weight: 600; }
+header a { display: flex; align-items: center; gap: 9px; border: 0; font-weight: 650; }
+header img { width: 26px; height: 26px; margin: 0 -2px; }
 main { flex: 1; display: flex; align-items: center; }
 h1 { margin: 0 0 12px; color: var(--bright); font-size: clamp(48px, 12vw, 96px); line-height: 1; }
 footer { border-top: 1px solid var(--border); padding: 24px 0 48px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
 </style>
 </head>
 <body>
-<header><div class="wrap"><a href="/">X for macOS</a></div></header>
+<header><div class="wrap"><a href="/"><img src="/icon-64.png" alt="" width="26" height="26">X for macOS</a></div></header>
 <main>
   <div class="wrap">
     <h1>404</h1>

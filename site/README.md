@@ -1,11 +1,19 @@
 # site/
 
-The app's website, served at **x.banast.as**: one page about X for macOS with a Download button, the update feed installed copies check, and the current release. It's static, with no build step and nothing loaded from other servers: `index.html` with inline CSS and JS, `404.html`, `favicon.svg`, `_headers` and `robots.txt`. It follows Cue's site (`../Cue/site/`) in a plainer style.
+The app's website, served at **x.banast.as**: one page about X for macOS with a Download button, the update feed installed copies check, and the current release. It's static, with no build step and nothing loaded from other servers: `index.html` with inline CSS and JS, `404.html`, the app icon (`icon.png` at 512 px, `icon-64.png` for the favicon and header), `_headers` and `robots.txt`. It follows Cue's site (`../Cue/site/`).
 
 - **Unlisted.** Every response says `noindex` (`_headers` and a meta tag), and `robots.txt` turns crawlers away. Nothing in the family's other sites links here.
-- **Not X's brand.** The page says plainly that the app is independent of X Corp. It does not use X's logo, the app icon's artwork, or X's colors; the favicon is a plain refresh mark. Keep it that way.
+- **Design:** the family's greys with the app icon's gold. `--gold-hi`, `--gold` and `--gold-deep` are sampled from the rendered icon, and the icon's near-black mark is the ink on gold buttons. The hero draws the app's window in HTML and CSS: the toolbar, the For you and Following tabs, placeholder posts with no real content, and the status strip's countdown. It refreshes at zero and then every 60 seconds, and clicking the feed shows a pull. With Reduce Motion on, nothing slides or spins. Chips beside the window show on wide screens only.
+- **The icon, not X's brand.** The app icon (the user's choice, 2026-10-17) is the only artwork. It contains X's mark, so the page says plainly, near the top and in the details, that the app is independent of X Corp. Don't add X's wordmark, its blue, or screenshots of real posts.
+- **Icon files:** made from `Resources/x-gold-icon.png` by the app's own renderer, so the page and the Dock match. After changing the artwork, run:
+
+  ```bash
+  swift scripts/render-icon.swift Resources/x-gold-icon.png /tmp/x.iconset
+  cp /tmp/x.iconset/icon_256x256@2x.png site/icon.png
+  cp /tmp/x.iconset/icon_32x32@2x.png site/icon-64.png
+  ```
 - **Copy:** literal and short, a sentence or two a card.
-- **Download:** the page reads `appcast.xml` for the version, date, notes and size, and turns the Download button on. Before the first release it stays off and says "No release yet".
+- **Download:** the page reads `appcast.xml` for the version, date, notes and size, and turns on all three Download buttons (header, hero, closing). Before the first release it stays off and says "No release yet".
 
 Preview locally:
 
