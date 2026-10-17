@@ -20,6 +20,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     private var model: BrowserModel!
     private var titleUpdates: Task<Void, Never>?
     private let updates = Updates()
+    private var preferences: AppPreferences!
+    private var settingsWindow: SettingsWindow!
+    private let notifier = UnreadNotifier()
+    /// Links that arrived before the window existed (a Dock drop that launched the app).
+    private var pendingLinks: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         var fixture: URL?
@@ -30,7 +35,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         #endif
         // One feed window; tabbing would only add empty View-menu commands.
         NSWindow.allowsAutomaticWindowTabbing = false
-        model = BrowserModel(defaults: fixture == nil ? .standard : UserDefaults(suiteName: "as.banast.xdesktop.fixture")!, fixtureURL: fixture)
+        let defaults = fixture == nil ? UserDefaults.standard : UserDefaults(suiteName: "as.banast.xdesktop.fixture")!
+        model = BrowserModel(defaults: defaults, fixtureURL: fixture)
+        preferences = AppPreferences(defaults: defaults)
+        settingsWindow = SettingsWindow(model: model, preferences: preferences, updates: updates)
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 820),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = fixture == nil ? "X" : "X · Test fixture"
@@ -42,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = false
+        toolbar.centeredItemIdentifiers = [Self.feedItem]
         window.toolbar = toolbar
         if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
            let icon = NSImage(contentsOf: iconURL) {
@@ -50,7 +59,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         window.minSize = NSSize(width: 360, height: 480)
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.contentView = NSHostingView(rootView: ContentView(model: model))
+        window.contentView = NSHostingView(rootView: ContentView(model: model, openSettings: { [weak self] in self?.showSettings() }))
+        preferences.onKeepOnTop = { [weak self] onTop in self?.window.level = onTop ? .floating : .normal }
+        window.level = preferences.keepOnTop ? .floating : .normal
         window.center()
         // Fixture runs are throwaway; keep their geometry out of the real preferences.
         if fixture == nil { window.setFrameAutosaveName("XMainWindow") }
@@ -67,13 +78,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         let model = self.model!, namesWindow = fixture == nil
         titleUpdates = Task { [weak self] in
             for await title in Observations({ model.pageTitle }) {
-                NSApp.dockTile.badgeLabel = PageTitle.badge(title)
+                let badge = PageTitle.badge(title)
+                NSApp.dockTile.badgeLabel = badge
                 if namesWindow { self?.window.title = PageTitle.text(title) }
+                if let self { self.notifier.update(badge: badge, enabled: self.preferences.notifyUnread) }
             }
         }
+        // Services › Open in X for macOS, for an x.com link selected in another app.
+        NSApp.servicesProvider = self
+        NSUpdateDynamicServices()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
         model.attach(to: window)
+        pendingLinks.forEach(open)
+        pendingLinks = []
+    }
+
+    /// A link or .webloc dropped on the Dock icon, or a file opened with the app.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            if model == nil { pendingLinks.append(url) } else { open(url) }
+        }
+    }
+
+    private func open(_ url: URL) {
+        let link: URL?
+        if url.isFileURL {
+            // Finder's .webloc is a property list; Windows-style .url files are "URL=" text.
+            let data = try? Data(contentsOf: url)
+            let plist = data.flatMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) } as? [String: Any]
+            let text = (plist?["URL"] as? String)
+                ?? data.flatMap { String(data: $0, encoding: .utf8) }?.split(separator: "\n")
+                    .first { $0.hasPrefix("URL=") }.map { String($0.dropFirst(4)) }
+            link = text.flatMap(NavigationPolicy.xLink(from:))
+        } else {
+            link = NavigationPolicy.xLink(from: url.absoluteString)
+        }
+        showMainWindow()
+        if let link { model.open(link) } else { model.open(url) }
+    }
+
+    /// The Services menu handler named in Info.plist (NSMessage openXLink).
+    @objc func openXLink(_ pasteboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
+        let text = pasteboard.string(forType: .URL) ?? pasteboard.string(forType: .string) ?? ""
+        guard let url = NavigationPolicy.xLink(from: text) else {
+            error.pointee = "The selection isn't an x.com link."
+            return
+        }
+        NSApp.activate()
+        showMainWindow()
+        model.open(url)
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -116,6 +170,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     @objc private func toggleAutomatic() { model.toggleAutomatic() }
     @objc private func checkForUpdates() { updates.checkNow() }
     @objc private func toggleAutomaticUpdates() { updates.checksAutomatically.toggle() }
+    @objc private func showSettings() {
+        settingsWindow.show()
+        NSApp.activate()
+    }
+    @objc private func toggleKeepOnTop() { preferences.keepOnTop.toggle() }
+    @objc private func openWebsite() { NSWorkspace.shared.open(URL(string: "https://x.banast.as")!) }
+    @objc private func reportIssue() { NSWorkspace.shared.open(URL(string: "https://github.com/banastas/X/issues")!) }
+    @objc private func copyDiagnostics() {
+        model.copyDiagnostics(updates: updates.isAvailable ? (updates.checksAutomatically ? "checking daily" : "manual only")
+                                                           : "not in this build")
+    }
     @objc private func zoomIn() { model.zoomIn() }
     @objc private func zoomOut() { model.zoomOut() }
     @objc private func actualSize() { model.resetZoom() }
@@ -145,6 +210,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         case #selector(toggleAutomaticUpdates):
             menuItem.state = updates.checksAutomatically ? .on : .off
             return true
+        case #selector(toggleKeepOnTop):
+            menuItem.state = preferences.keepOnTop ? .on : .off
+            return true
         case #selector(zoomIn): return model.canZoomIn
         case #selector(zoomOut): return model.canZoomOut
         case #selector(actualSize): return model.pageZoom != 1
@@ -154,9 +222,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
 
     private static let navigationItem = NSToolbarItem.Identifier("XNavigation")
     private static let refreshItem = NSToolbarItem.Identifier("XRefresh")
+    private static let feedItem = NSToolbarItem.Identifier("XFeed")
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.navigationItem, .flexibleSpace, Self.refreshItem]
+        [Self.navigationItem, .flexibleSpace, Self.feedItem, .flexibleSpace, Self.refreshItem]
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -165,6 +234,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier,
                  willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        if identifier == Self.feedItem {
+            let item = NSToolbarItem(itemIdentifier: identifier)
+            item.label = "Feed"
+            item.view = NSHostingView(rootView: FeedLabel(model: model))
+            return item
+        }
         guard identifier == Self.navigationItem || identifier == Self.refreshItem else { return nil }
         let item = NSToolbarItem(itemIdentifier: identifier)
         item.label = identifier == Self.navigationItem ? "Navigation" : "Refresh"
@@ -195,6 +270,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
             _ = add("Check for Updates…", #selector(checkForUpdates), to: appMenu, target: self)
             _ = add("Check for Updates Automatically", #selector(toggleAutomaticUpdates), to: appMenu, target: self)
         }
+        appMenu.addItem(.separator())
+        _ = add("Settings…", #selector(showSettings), ",", to: appMenu, target: self)
         appMenu.addItem(.separator())
         NSApp.servicesMenu = submenu("Services", in: appMenu)
         appMenu.addItem(.separator())
@@ -269,9 +346,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         _ = add("Close", #selector(NSWindow.performClose(_:)), "w", to: windowMenu)
         windowMenu.addItem(.separator())
         _ = add("Show Main Window", #selector(showMainWindow), to: windowMenu, target: self)
+        _ = add("Keep on Top", #selector(toggleKeepOnTop), to: windowMenu, target: self)
         windowMenu.addItem(.separator())
         _ = add("Bring All to Front", #selector(NSApplication.arrangeInFront(_:)), to: windowMenu)
         NSApp.windowsMenu = windowMenu
+
+        let help = submenu("Help", in: menu)
+        _ = add("X for macOS Website", #selector(openWebsite), to: help, target: self)
+        _ = add("Report an Issue…", #selector(reportIssue), to: help, target: self)
+        help.addItem(.separator())
+        _ = add("Copy Diagnostics", #selector(copyDiagnostics), to: help, target: self)
+        NSApp.helpMenu = help
         NSApp.mainMenu = menu
     }
 }
@@ -292,7 +377,9 @@ private struct WebViewHost: NSViewRepresentable {
 
 private struct ContentView: View {
     let model: BrowserModel
+    let openSettings: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showsDetails = false
 
     private var pullLabel: String {
         if model.pullArmed { return model.pullUsesWheel ? "Stop scrolling to refresh" : "Release to refresh" }
@@ -303,7 +390,7 @@ private struct ContentView: View {
     private func countdown(to next: Date, at date: Date) -> String {
         let seconds = Int(next.timeIntervalSince(date).rounded(.up))
         let refreshed = model.lastRefresh.map { " · Refreshed \($0.formatted(date: .omitted, time: .shortened))" } ?? ""
-        return (seconds > 0 ? "Next refresh in \(seconds)s" : "Refreshing once you pause") + refreshed
+        return (seconds > 0 ? "Next refresh in \(RefreshInterval.remaining(seconds))" : "Refreshing once you pause") + refreshed
     }
 
     var body: some View {
@@ -332,15 +419,25 @@ private struct ContentView: View {
             }
             Divider()
             HStack(spacing: 8) {
-                Group {
-                    if let next = model.nextRefresh {
-                        TimelineView(.periodic(from: .now, by: 1)) { context in Text(countdown(to: next, at: context.date)) }
-                    } else {
-                        Text(model.status)
+                // The status opens a short explanation of what refresh is waiting for.
+                Button { showsDetails.toggle() } label: {
+                    Group {
+                        if let next = model.nextRefresh {
+                            TimelineView(.periodic(from: .now, by: 1)) { context in Text(countdown(to: next, at: context.date)) }
+                        } else {
+                            Text(model.status)
+                        }
                     }
+                    .font(.system(size: 11)).lineLimit(model.errorMessage == nil ? 1 : 2).foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
                 }
-                .font(.system(size: 11)).lineLimit(model.errorMessage == nil ? 1 : 2).foregroundStyle(.secondary)
-                .help(model.lastRefresh.map { "Page refreshed at \($0.formatted(date: .omitted, time: .standard))" } ?? model.status)
+                .buttonStyle(.plain)
+                .help("Show refresh details")
+                .accessibilityLabel(model.status)
+                .accessibilityHint("Shows what automatic refresh is waiting for")
+                .popover(isPresented: $showsDetails, arrowEdge: .top) {
+                    StatusDetails(model: model, openSettings: { showsDetails = false; openSettings() })
+                }
                 Spacer(minLength: 0)
                 if model.errorMessage != nil {
                     Button("Retry") { model.refresh() }.font(.caption)
@@ -350,6 +447,60 @@ private struct ContentView: View {
             }.padding(.horizontal, 10).padding(.vertical, 3)
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: model.pullArmed)
+    }
+}
+
+/// The status strip's popover: what refresh is doing and why, with the controls that change it.
+private struct StatusDetails: View {
+    let model: BrowserModel
+    let openSettings: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(model.status).font(.headline).fixedSize(horizontal: false, vertical: true)
+            ForEach(model.refreshDetails, id: \.self) { line in
+                Text(line).fixedSize(horizontal: false, vertical: true)
+            }
+            if let last = model.lastRefresh {
+                Text("Last refreshed at \(last.formatted(date: .omitted, time: .standard))").foregroundStyle(.secondary)
+            }
+            HStack {
+                Button("Refresh Now") { model.refresh() }.disabled(model.loading)
+                Button(model.autoRefresh ? "Pause" : "Resume", action: model.toggleAutomatic)
+                Spacer()
+                Button("Settings…", action: openSettings)
+            }
+            .padding(.top, 4)
+        }
+        .font(.callout)
+        .padding(16)
+        .frame(width: 320)
+    }
+}
+
+/// The feed being shown, centered in the toolbar. The toolbar draws it as a button, so it is one:
+/// a menu that switches feeds, or returns Home from elsewhere.
+private struct FeedLabel: View {
+    let model: BrowserModel
+
+    var body: some View {
+        Menu {
+            Button("For You") { model.selectFeed(0) }
+            Button("Following") { model.selectFeed(1) }
+            Divider()
+            Button("Home", action: model.home)
+        } label: {
+            Text(model.feedLabel.isEmpty ? "Home" : model.feedLabel)
+                .font(.system(size: 12, weight: .semibold)).lineLimit(1)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.visible)
+        .fixedSize()
+        // A toolbar item keeps the size it had when inserted, so reserve room for the longest label.
+        .frame(width: 110, height: 26)
+        .help("Switch feeds")
+        .accessibilityLabel(model.feedLabel.isEmpty ? "Feed menu" : "Showing \(model.feedLabel)")
+        .accessibilityHint("Switches between For you and Following")
     }
 }
 

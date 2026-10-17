@@ -240,3 +240,44 @@ final class UpdatePolicyTests: XCTestCase {
         }
     }
 }
+
+final class RefreshIntervalTests: XCTestCase {
+    func testChangingTheIntervalRestartsAPendingDeadlineOnly() {
+        var s = RefreshSchedule(enabled: true)
+        s.setEligible(true, now: 0)
+        XCTAssertEqual(s.deadline, 60)
+        s.setInterval(300, now: 50)
+        XCTAssertEqual(s.interval, 300)
+        XCTAssertEqual(s.deadline, 350, "A longer interval restarts from now, not from the old deadline")
+        XCTAssertFalse(s.isDue(now: 100, mayRetry: true))
+        s.setInterval(120, now: 200)
+        XCTAssertEqual(s.deadline, 320, "A shorter interval never fires at once")
+        s.setEnabled(false, now: 210)
+        s.setInterval(60, now: 220)
+        XCTAssertNil(s.deadline, "No deadline appears while automatic refresh is off")
+    }
+
+    func testWordingAndValidation() {
+        XCTAssertEqual(RefreshInterval.phrase(60), "every minute")
+        XCTAssertEqual(RefreshInterval.phrase(300), "every 5 minutes")
+        XCTAssertEqual(RefreshInterval.name(60), "1 minute")
+        XCTAssertEqual(RefreshInterval.name(600), "10 minutes")
+        XCTAssertEqual(RefreshInterval.remaining(42), "42s")
+        XCTAssertEqual(RefreshInterval.remaining(245), "4:05")
+        XCTAssertEqual(RefreshInterval.validated(120), 120)
+        XCTAssertEqual(RefreshInterval.validated(7), 60)
+        XCTAssertEqual(RefreshInterval.validated(0), 60)
+    }
+}
+
+final class XLinkTests: XCTestCase {
+    func testLinksFromOtherAppsAreNormalizedOrRefused() {
+        XCTAssertEqual(NavigationPolicy.xLink(from: " https://x.com/someone/status/123 \n")?.absoluteString, "https://x.com/someone/status/123")
+        XCTAssertEqual(NavigationPolicy.xLink(from: "x.com/home")?.absoluteString, "https://x.com/home")
+        XCTAssertEqual(NavigationPolicy.xLink(from: "http://twitter.com/a")?.absoluteString, "https://twitter.com/a")
+        for value in ["", "hello world", "https://example.com/x.com", "javascript:alert(1)", "https://x.com.evil.test/",
+                      "file:///Users/a/x.com", "https://x.com:8443/home"] {
+            XCTAssertNil(NavigationPolicy.xLink(from: value), value)
+        }
+    }
+}

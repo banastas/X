@@ -20,9 +20,9 @@ The experience should be compact and restrained. Preserving the last-read post o
 | Language and frameworks | Swift, SwiftUI, WebKit, and AppKit where required. |
 | Content | The authenticated X website in `WKWebView`. |
 | Feeds | Switch between the actual For you and Following tabs. |
-| Automatic refresh | A fixed 60-second interval. No randomized scheduling. |
+| Automatic refresh | One minute by default; 1, 2, 5 or 10 minutes in Settings (2026-10-17). No randomized scheduling. A timed refresh at the top of the feed uses X's own Show N posts button when present, and reloads otherwise. |
 | Pull-to-refresh | Pull down at the top of the timeline and release past a threshold to refresh. |
-| Reading position | May reset when refreshing. No unread tracking or resume-position requirement. |
+| Reading position | Kept across a reload when scrolled down (2026-10-17): the post at the top of the screen is found again and marked. No unread tracking. |
 | Controls | Pause/resume automatic refresh and refresh immediately. |
 | Persistence | Retain website login and window dimensions across launches, subject to X session expiry. |
 | Interruption protection | Pause refresh while composing, viewing a post, or playing video. |
@@ -75,7 +75,7 @@ The app should use standard macOS window controls and support light/dark system 
 
 Use X's existing **For you** and **Following** tabs. Do not add a duplicate native feed selector in the first release.
 
-Refresh the currently selected feed only. Switching tabs starts a new 60-second countdown once the destination feed is ready.
+Refresh the currently selected feed only, including a pinned list or community tab (2026-10-17). Switching tabs starts a new countdown once the destination feed is ready. The toolbar's feed menu and Option-Command-1/2 switch between For you and Following through X's own tabs.
 
 The selected tab must survive an automatic or manual reload within the running session. Whether X preserves this itself is an early compatibility test. If it does not, a narrowly scoped restoration mechanism must be implemented and tested before this requirement is considered complete.
 
@@ -103,10 +103,10 @@ Default automatic refresh to on. Persist an explicit user pause across launches.
 
 ### Scheduling
 
-- Schedule one refresh 60 seconds after the last successful eligible feed load.
+- Schedule one refresh one interval (one minute by default) after the last successful eligible feed load.
 - Use a single scheduler shared by timed refresh, toolbar refresh, keyboard refresh, and pull-to-refresh.
 - Allow only one reload at a time. Coalesce additional triggers during a pending reload.
-- A successful refresh starts a fresh 60-second countdown.
+- A successful refresh starts a fresh countdown. Changing the interval restarts a pending countdown from that moment.
 - Manual and pull refresh work while automatic refresh is explicitly paused, but do not turn it back on.
 - Use monotonic timing while awake and handle system sleep/wake explicitly.
 - Do not accumulate missed refreshes or run catch-up bursts.

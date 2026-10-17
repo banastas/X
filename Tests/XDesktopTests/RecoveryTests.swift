@@ -131,7 +131,10 @@ final class RecoveryTests: XCTestCase {
             _ = try await model.webView.evaluateJavaScript("var extra=document.createElement('button'); extra.role='tab'; extra.textContent='List'; document.querySelector('[role=tablist]').append(extra); document.querySelectorAll('[role=tab]').forEach(tab => tab.setAttribute('aria-selected','false')); extra.setAttribute('aria-selected','true'); true")
             try await waitUntil { model.page.otherTab }
             XCTAssertNil(defaults.object(forKey: "selectedFeed"))
-            XCTAssertEqual(model.page.reason, "Auto-refresh covers For you and Following only")
+            // Pinned tabs now refresh like the two feeds; the saved feed stays X's to remember.
+            try await waitUntil { model.page.ready && model.feedLabel == "Pinned tab" }
+            XCTAssertEqual(model.page.reason, "")
+            XCTAssertNil(defaults.object(forKey: "selectedFeed"))
         }
     }
 
@@ -209,6 +212,99 @@ final class RecoveryTests: XCTestCase {
             let reopened = BrowserModel(defaults: defaults, fixtureURL: fixture)
             XCTAssertFalse(reopened.followingRecent)
             reopened.shutdown()
+        }
+    }
+
+    private func scrollTop(_ model: BrowserModel) async throws -> Double {
+        try await model.webView.evaluateJavaScript("document.scrollingElement.scrollTop") as? Double ?? -1
+    }
+
+    func testTimedRefreshUsesXsShowPostsButtonInsteadOfReloading() async throws {
+        try await withModel(attached: true) { model, _ in
+            var said: [String] = []
+            model.announce = { said.append($0) }
+            try await waitUntil { !model.loading && model.page.ready }
+            model.toggleAutomatic()
+            _ = try await model.webView.evaluateJavaScript("window.sameDocument=true; var pill=document.createElement('div'); pill.role='button'; pill.textContent='Show 3 posts'; pill.onclick=()=>{ document.body.dataset.shown=1; pill.remove() }; document.querySelector('main').prepend(pill); true")
+            try await Task.sleep(for: .milliseconds(1200))
+            let previous = model.lastRefresh
+            model.refresh(manual: false, requiresAutomatic: true)
+            try await waitUntil { model.lastRefresh != previous }
+            let kept = try await model.webView.evaluateJavaScript("window.sameDocument === true && document.body.dataset.shown === '1'") as? Bool
+            XCTAssertEqual(kept, true, "The pill was used and the document was not reloaded")
+            XCTAssertFalse(model.loading)
+            XCTAssertTrue(said.contains("New posts shown"))
+        }
+    }
+
+    func testManualRefreshKeepsThePlaceWhenScrolledDown() async throws {
+        try await withModel(attached: true) { model, _ in
+            try await waitUntil { !model.loading && model.page.ready }
+            _ = try await model.webView.evaluateJavaScript("window.scrollTo(0, 800); true")
+            try await waitUntil { !model.page.feedTop }
+            let previous = model.lastRefresh
+            model.refresh()
+            try await waitUntil { model.lastRefresh != previous && !model.loading }
+            for _ in 0..<50 {
+                if try await scrollTop(model) >= 400 { break }
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            let top = try await scrollTop(model)
+            XCTAssertGreaterThan(top, 400, "The reload came back to the post that was at the top of the screen")
+        }
+    }
+
+    func testKeepingThePlaceCanBeTurnedOff() async throws {
+        try await withModel(attached: true) { model, defaults in
+            try await waitUntil { !model.loading && model.page.ready }
+            model.toggleKeepsPlace()
+            XCTAssertFalse(defaults.bool(forKey: "keepPlace"))
+            _ = try await model.webView.evaluateJavaScript("window.scrollTo(0, 800); true")
+            try await waitUntil { !model.page.feedTop }
+            let previous = model.lastRefresh
+            model.refresh()
+            try await waitUntil { model.lastRefresh != previous && !model.loading }
+            try await Task.sleep(for: .milliseconds(600))
+            let top = try await scrollTop(model)
+            XCTAssertEqual(top, 0)
+        }
+    }
+
+    func testRefreshIntervalIsWordedAndPersists() async throws {
+        try await withModel(attached: true) { model, defaults in
+            try await waitUntil { !model.loading && model.page.ready }
+            model.toggleAutomatic()
+            try await waitUntil { model.status.hasPrefix("Auto-refresh every minute") }
+            model.setRefreshInterval(300)
+            try await waitUntil { model.status.hasPrefix("Auto-refresh every 5 minutes") }
+            let remaining = try XCTUnwrap(model.nextRefresh).timeIntervalSinceNow
+            XCTAssertTrue((290...301).contains(remaining), "\(remaining)")
+            XCTAssertEqual(defaults.double(forKey: "refreshInterval"), 300)
+            let reopened = BrowserModel(defaults: defaults, fixtureURL: fixture)
+            XCTAssertEqual(reopened.refreshInterval, 300)
+            reopened.shutdown()
+            defaults.set(7, forKey: "refreshInterval")
+            let invalid = BrowserModel(defaults: defaults, fixtureURL: fixture)
+            XCTAssertEqual(invalid.refreshInterval, 60, "A stored value outside the choices falls back to a minute")
+            invalid.shutdown()
+        }
+    }
+
+    func testFeedLabelDetailsAndDiagnostics() async throws {
+        try await withModel(attached: true) { model, _ in
+            try await waitUntil { !model.loading && model.page.ready }
+            XCTAssertEqual(model.feedLabel, "For you")
+            XCTAssertTrue(model.refreshDetails.contains { $0.hasPrefix("Automatic refresh is paused") })
+            model.selectFeed(1)
+            try await waitUntil { model.feedLabel == "Following" }
+            let report = model.diagnostics(updates: "not in this build")
+            XCTAssertTrue(report.hasPrefix("X for macOS "), report)
+            XCTAssertTrue(report.contains("Page: home yes, recognized yes, ready yes, feed Following"), report)
+            XCTAssertTrue(report.contains("Updates: not in this build"))
+            XCTAssertFalse(report.contains("file:"), "No addresses in the report")
+            XCTAssertFalse(report.contains("/status/"))
+            model.open(URL(string: "https://example.com/")!)
+            XCTAssertEqual(model.status, "Only x.com links open in this app.")
         }
     }
 

@@ -21,13 +21,17 @@ To uninstall, quit X and move the installed app to Trash. Removing the app does 
 
 - Opens X in its own resizable window, with your login and window size retained between launches.
 - Defaults Following to **Recent** after each page load, including manual and automatic reloads. You can choose Popular for the current page from X’s sort menu, or turn the default off with **View → Default Following to Recent**.
-- Reloads the selected home feed every 60 seconds, counted from when the feed finishes loading. While you are scrolled down reading, it waits until you return to the top or stop interacting for two minutes.
+- Refreshes the selected home feed every minute by default (1, 2, 5 or 10 minutes in **Settings**), counted from when the feed finishes loading. While you are scrolled down reading, it waits until you return to the top or stop interacting for two minutes.
+- When X is offering its own **Show N posts** button at the top of the feed, a timed refresh uses it instead of reloading the page. Otherwise it reloads.
+- Keeps your place: if you were scrolled down, the post that was at the top of the screen comes back after a reload, marked with a **You were here** line. You can turn this off in Settings.
+- Refreshes pinned list and community tabs as well as For you and Following.
 - Pauses automatic refresh during detected drafts, actively watched or audible media, dialogs, open menus, navigation away from Home, and whenever the window cannot be seen.
 - Adds native Home, Back/Forward, refresh/stop, auto-refresh, find-in-page, and zoom controls, plus trackpad and mouse-wheel refresh gestures.
-- Shows X's unread notification count on the Dock icon.
+- Shows X's unread notification count on the Dock icon, and can post a macOS notification when it rises while the app is in the background (off by default).
+- Can open at login and stay above other windows (**Settings**, or **Window → Keep on Top**).
 - Opens external article links in your default browser and saves downloads, including images saved from the context menu, to your Downloads folder.
 
-The app displays X's website inside Apple's `WKWebView`; it does not recreate the timeline or fetch posts through the X API. There is no hosted backend, API key, or app-managed post database. You sign into your own X account, and X controls the content and recommendations you see. A reload may reset your reading position and does not guarantee new posts.
+The app displays X's website inside Apple's `WKWebView`; it does not recreate the timeline or fetch posts through the X API. There is no hosted backend, API key, or app-managed post database. You sign into your own X account, and X controls the content and recommendations you see. A refresh does not guarantee new posts, and your place can't come back if X no longer shows that post near the top of the reloaded feed.
 
 **Current version: 0.4.0.** See [verification](docs/VERIFICATION.md) for automated coverage and live checks of the Following sort default. Core browsing and refresh behavior were checked during 0.1.x; the other 0.2.0 fixes remain covered by local fixture tests. There is no App Store release; you can also [build it from source](#build-from-source).
 
@@ -36,7 +40,7 @@ The app displays X's website inside Apple's `WKWebView`; it does not recreate th
 | Action | Control |
 | --- | --- |
 | Switch feed | X's own For you / Following tabs |
-| For you / Following | `Option-Command-1` / `Option-Command-2` (loads Home first if needed) |
+| For you / Following | The feed menu in the middle of the toolbar, or `Option-Command-1` / `Option-Command-2` (loads Home first if needed) |
 | Refresh now | Toolbar refresh or `Command-R` |
 | Stop a slow load | Toolbar stop (shown while loading) or `Command-.` |
 | Pause/resume automatic refresh | Toolbar timer button (filled when on) or `Command-P` |
@@ -45,7 +49,12 @@ The app displays X's website inside Apple's `WKWebView`; it does not recreate th
 | Find on page | `Command-F`, then `Command-G` / `Shift-Command-G`; `Escape` closes |
 | Copy or open the current page | **File → Copy Link** (`Shift-Command-C`) or **Open in Browser** (`Shift-Command-O`) |
 | Save an image | Control-click it, then **Save Image to Downloads** (original size for X media) |
-| Following sort default | **View → Default Following to Recent** |
+| Following sort default | **View → Default Following to Recent**, or Settings |
+| Settings | **X → Settings…** (`Command-,`): refresh interval, keeping your place, the Recent default, keep on top, open at login, notifications, updates |
+| Why refresh is waiting | Click the status strip at the bottom of the window |
+| Keep the window on top | **Window → Keep on Top** |
+| Open an X link from another app | Drop it on the Dock icon, or select it and choose **Services → Open in X for macOS** |
+| Report a problem | **Help → Copy Diagnostics**, then **Help → Report an Issue…** |
 | Text size | `Command-+`, `Command-−`, `Command-0` (remembered between launches) |
 | Full screen | `Control-Command-F` |
 | Reopen a closed window | Click the Dock icon, or **Window → Show Main Window** |
@@ -56,7 +65,7 @@ With a mouse wheel, once **Stop scrolling to refresh** appears, stopping for abo
 
 Manual and pull refresh still work while automatic refresh is paused, and they do not turn it back on. Only one reload runs at a time.
 
-The thin status strip at the bottom explains what the app is doing and when the page last refreshed. While the next refresh is counting down, it shows the seconds remaining; “Refreshing once you pause” means it is due but waiting for scrolling, pointer movement, or typing to stop. Automatic refresh waits during detected drafts, focused composers, dialogs, open menus, actively watched or audible media, and non-Home navigation. It also suspends while the app is hidden, the window is minimized, closed, on another Space, or fully covered, and while the screen is locked or asleep. A visible window can continue refreshing while another app has focus.
+The thin status strip at the bottom explains what the app is doing and when the page last refreshed. Click it for the details: what refresh is waiting for, when it last ran, and buttons to refresh, pause or open Settings. While the next refresh is counting down, it shows the time remaining; “Refreshing once you pause” means it is due but waiting for scrolling, pointer movement, or typing to stop. Automatic refresh waits during detected drafts, focused composers, dialogs, open menus, actively watched or audible media, and non-Home navigation. It also suspends while the app is hidden, the window is minimized, closed, on another Space, or fully covered, and while the screen is locked or asleep. A visible window can continue refreshing while another app has focus.
 
 Direct input in the page (scrolling, pointer movement, clicks, and keys) delays an overdue refresh until at least five seconds after it stops. While you are scrolled down the feed, a due refresh waits until you scroll back to the top or leave the page untouched for two minutes, so it does not replace what you are reading.
 
@@ -80,16 +89,17 @@ Debug builds, and any copy built with `scripts/build-app.sh`, carry no update fe
 | --- | --- |
 | Reopening still shows an older build | Quit every running copy and open the one you replaced. Check **X → About X** for the version. |
 | Following isn't switched to Recent | Check that **View → Default Following to Recent** is on. If the status strip says it could not select Recent, X's sort menu wasn't recognized (for example, in another interface language); choose Recent from X's sort menu. |
-| Automatic refresh appears stuck | Read the status strip. Return to Home, select For you or Following, scroll back to the top, and finish or close any composer, dialog, menu, or active media. Resume the timer if it is paused. Pinned list tabs are not auto-refreshed. |
+| Automatic refresh appears stuck | Read the status strip. Return to Home, select For you or Following, scroll back to the top, and finish or close any composer, dialog, menu, or active media. Resume the timer if it is paused. Click the status strip to see what it is waiting for. |
+| Your place didn't come back after a refresh | X no longer showed that post within about 15 screens of the top, so the feed returned to the top. Scrolling, clicking or typing while it searches also stops it. |
 | Pull-to-refresh does nothing | Put the pointer over the timeline, reach its top, and begin a new pull after a short pause. A draft, dialog, open menu, or playing media also disables the gesture. Toolbar refresh remains available. |
 | Google or Apple sign-in does not complete | Embedded-browser login can be restricted by the provider. When the sign-in window returns to X, the app closes it and reloads Home in the main window. The full OAuth flows have not been acceptance-tested; use X's direct sign-in flow if available. |
 | The feed stops loading after a website change | Try the toolbar's Retry/Refresh control. The adapter may need updating if X changes its markup; automatic refresh stops when it cannot recognize the feed. |
 
 ## Storage and privacy
 
-Each installation uses its own local WebKit website data and the account signed in on that Mac. Preferences retain the automatic-refresh setting, the Following sort default, selected feed, page zoom, and window geometry. Downloads started from the website are saved to your Downloads folder. The app's bundle identifier is `as.banast.xdesktop`; it identifies the application and does not connect users to the maintainer's X account.
+Each installation uses its own local WebKit website data and the account signed in on that Mac. Preferences retain the automatic-refresh setting and interval, keeping your place, the Following sort default, keep on top, unread notifications, selected feed, page zoom, and window geometry. Downloads started from the website are saved to your Downloads folder. The app's bundle identifier is `as.banast.xdesktop`; it identifies the application and does not connect users to the maintainer's X account.
 
-The app does not extract credentials, save posts to a database, add telemetry, or automate engagement. Published builds make one request of their own: a daily fetch of the update feed from x.banast.as, without Sparkle's optional system profile. An isolated website script reports limited UI state—booleans, a feed index, and short status descriptions—to the native app. It also restores the selected feed, chooses Recent once per document when Following opens (unless you turn that off), and, when you choose **Save Image to Downloads**, returns the address of the image under the pointer. The Dock badge and window title come from the page title that WebKit already exposes to the app. If X’s sort menu cannot be recognized, the status strip explains that you need to select Recent manually. X's website still makes its own network requests and follows X's own data practices.
+The app does not extract credentials, save posts to a database, add telemetry, or automate engagement. Published builds make one request of their own: a daily fetch of the update feed from x.banast.as, without Sparkle's optional system profile. An isolated website script reports limited UI state—booleans, a feed index, and short status descriptions—to the native app. It also restores the selected feed, chooses Recent once per document when Following opens (unless you turn that off), and, when you choose **Save Image to Downloads**, returns the address of the image under the pointer. Before a reload while you are scrolled down, it returns the status number of the post at the top of the screen, so the app can bring it back; that number stays in memory and is never saved. It also uses X's own **Show N posts** button when X offers one. The Dock badge, window title and unread notifications come from the page title that WebKit already exposes to the app; a notification says only how many are unread. **Help → Copy Diagnostics** copies the app and macOS versions, settings, the adapter's flags and recent status lines, with no addresses, account names or post content. If X’s sort menu cannot be recognized, the status strip explains that you need to select Recent manually. X's website still makes its own network requests and follows X's own data practices.
 
 The repository contains source, synthetic test fixtures, documentation, and icon assets. Build output and local app bundles are excluded from Git. Do not include website-data folders, cookies, credentials, or private screenshots in bug reports.
 
@@ -259,6 +269,6 @@ PUBLISH=1 INSTALL=1 VERSION=0.4.1 NOTES="What changed" scripts/release.sh   # �
 
 X can change its website or login requirements without notice. The app does not promise complete website feature parity, offline access, multiple accounts, or native notifications. Full upload, camera, microphone, and Google/Apple OAuth flows, comprehensive accessibility checks, and an extended stability soak remain unverified. Physical mouse-wheel behavior can vary by device and driver. See the [verification report](docs/VERIFICATION.md) for details.
 
-[X's automation rules](https://help.x.com/en/rules-and-policies/x-automation) prohibit non-API website automation. They do not explicitly approve this app's timed reloads. The 60-second interval is a usability choice, not a documented exemption or assurance against account enforcement.
+[X's automation rules](https://help.x.com/en/rules-and-policies/x-automation) prohibit non-API website automation. They do not explicitly approve this app's timed reloads. The one-minute default is a usability choice, not a documented exemption or assurance against account enforcement. Longer intervals in Settings, and using X's own Show posts button when it is offered, mean fewer full reloads.
 
 X's name and marks belong to their respective owner. The included attribution does not establish permission to redistribute those marks. A source-code license has not yet been selected; making a repository viewable does not itself grant an open-source license. See [GitHub's licensing explanation](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository).

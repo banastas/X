@@ -22,8 +22,11 @@ function choose(index) {
   document.querySelector('#feed').replaceChildren(...Array.from({length:15}, (_, i) => {
     const article = document.createElement('article');
     const name = document.createElement('strong'); name.textContent = 'Test account ' + (i + 1);
+    // A permalink around a timestamp, as X marks each post's own status link.
+    const link = document.createElement('a'); link.href = '/test/status/' + (1000 + i);
+    const time = document.createElement('time'); time.textContent = (i + 1) + 'h'; link.append(' ', time);
     const p = document.createElement('p'); p.textContent = (index ? 'Following' : 'For you') + ' fixture post. Local content for testing scrolling and refresh behavior.';
-    article.append(name,p); return article;
+    article.append(name, link, p); return article;
   }));
 }
 tabs.forEach((tab, index) => tab.addEventListener('click', () => choose(index))); choose(0);

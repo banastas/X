@@ -1,5 +1,31 @@
 # Verification: X 0.4.0
 
+## Settings, place keeping and more (unreleased)
+
+Added on October 17, 2026:
+
+- **Settings window** (`Command-,`): the refresh interval (1, 2, 5 or 10 minutes; `RefreshInterval`, `RefreshSchedule.setInterval`), automatic refresh, keeping your place, the Recent default, keep on top, open at login (`SMAppService`), unread notifications, and updates in published builds.
+- **Keeping your place:** before a reload while scrolled down, the adapter returns the status number and screen offset of the top post (`snapshot(true)`). After the same feed is ready, `restorePlace` finds it, scrolling a screen at a time for up to 15 steps, puts it back, and marks it "You were here". Reader input stops the search, and a post it can't find returns the feed to the top with a notice.
+- **X's own Show N posts button:** a timed refresh at the top of the feed clicks a visible button whose text is exactly "Show N posts", instead of reloading. A manual refresh, a pull, or a retry still reloads.
+- **Pinned tabs:** a pinned list or community tab is ready and refreshes. The saved feed is written only for For you or Following.
+- **Toolbar feed menu** (For You, Following, Home) in place of a plain label, since the toolbar draws each item as a button. **Status details popover** from the status strip. **Window → Keep on Top.** **Help:** the website, Report an Issue, and Copy Diagnostics (no addresses or post content).
+- **Unread notifications** from the title's count while the app is in the background, off by default. **Links from other apps:** `application(_:open:)` for Dock drops and .webloc files, and an `NSServices` entry, both through `NavigationPolicy.xLink`. **VoiceOver announcements** for refreshes, new posts shown, a restored place, errors, and pausing or resuming.
+
+Checks:
+
+- All **87 XCTest tests passed with zero failures** (54 desktop/WebKit and 33 core), 11 of them new. Three pinned-tab tests changed to expect refresh. New tests cover:
+  - the place taken only when scrolled down and restored to within 2 points after a real reload;
+  - a missing or invalid place;
+  - X's button used without a reload, with unrelated buttons ignored;
+  - a manual refresh keeping the place, and turning it off;
+  - interval wording and persistence;
+  - the feed label, the popover's text, diagnostics, and refusal of non-X links;
+  - the interval schedule and `xLink`.
+- Release and debug builds passed with warnings treated as errors.
+- In a fixture launch through Launch Services, the feed menu showed "For you", and the countdown and Refresh button worked. A throwaway test opened the Settings window and captured it, then was deleted.
+
+Not yet verified by hand: place keeping and X's Show posts button on the live site, notifications, open at login, keep on top, Services and Dock drops (which need the app in /Applications), and VoiceOver.
+
 ## First update through Sparkle (0.3.0 → 0.4.0)
 
 On October 17, 2026, 0.4.0 was published with `PUBLISH=1 VERSION=0.4.0 scripts/release.sh` (build 202610170740, without `INSTALL`), so the installed 0.3.0 had to update itself. Cloudflare Pages queued the deployment for several minutes behind the account's one concurrent build, then served it at 07:49. The feed then reported 0.4.0, build 202610170740 and a 27.0 minimum, and the new zip returned 200.

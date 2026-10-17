@@ -9,7 +9,7 @@ public struct RefreshSchedule: Sendable {
     public private(set) var manualRetryRequired = false
     private var quietUntil: Double = 0
     private var lastInteraction = -Double.infinity
-    public let interval: Double
+    public private(set) var interval: Double
     /// While the reader is scrolled away from the top of the feed, a due refresh waits
     /// until this long has passed without interaction, so it does not yank the page mid-read.
     public let readingIdle: Double
@@ -29,6 +29,13 @@ public struct RefreshSchedule: Sendable {
     public mutating func setEnabled(_ value: Bool, now: Double) {
         enabled = value
         deadline = value && eligible && !loading ? now + interval : nil
+    }
+
+    /// A new interval applies from now: a pending deadline restarts, so a shorter interval
+    /// never fires at once and a longer one never leaves the old deadline in place.
+    public mutating func setInterval(_ value: Double, now: Double) {
+        interval = max(1, value)
+        if deadline != nil { deadline = now + interval }
     }
 
     public mutating func postpone(now: Double) {

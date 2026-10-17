@@ -247,7 +247,8 @@ final class AdapterTests: XCTestCase, WKScriptMessageHandler {
         _ = try await webView.evaluateJavaScript("var extra=document.createElement('button'); extra.role='tab'; extra.setAttribute('aria-selected','false'); extra.textContent='Projects'; document.querySelector('[role=tablist]').append(extra); var mediaTabs=document.createElement('div'); mediaTabs.role='tablist'; mediaTabs.innerHTML='<button role=tab>Image</button>'; document.querySelector('main').append(mediaTabs)")
         let snapshot = try await webView.evaluateJavaScript("window.__xDesktop.snapshot()", in: nil, contentWorld: WebsiteAdapter.world)
         XCTAssertTrue(WebsiteState.decode(snapshot as Any)?.ready == true)
-        try await change("document.querySelectorAll('[role=tab]')[0].setAttribute('aria-selected','false'); extra.setAttribute('aria-selected','true')") { !$0.recognized && !$0.ready }
+        // A pinned tab is not For you or Following, but it refreshes like them.
+        try await change("document.querySelectorAll('[role=tab]')[0].setAttribute('aria-selected','false'); extra.setAttribute('aria-selected','true')") { !$0.recognized && $0.otherTab && $0.ready }
     }
     func testPaginationSpinnerDoesNotBlockAnAlreadyRenderedFeed() async throws {
         try await load(); defer { close() }
@@ -277,17 +278,68 @@ final class AdapterTests: XCTestCase, WKScriptMessageHandler {
         try await change("document.querySelector('textarea').value='Hello'; document.querySelector('textarea').dispatchEvent(new Event('input', {bubbles: true}))") { $0.draft }
         try await change("fixture.clearDraft()") { !$0.draft && !$0.protected }
     }
-    func testSignInAndPinnedTabReasons() async throws {
+    func testSignInReasonAndPinnedTabRefreshes() async throws {
         try await load(); defer { close() }
         try await change("document.documentElement.dataset.xDesktopFixture='signin'") { !$0.home && $0.reason == "Sign in to load your feeds" }
         try await change("document.documentElement.dataset.xDesktopFixture='true'; var extra=document.createElement('button'); extra.role='tab'; extra.textContent='List'; document.querySelector('[role=tablist]').append(extra); document.querySelectorAll('[role=tab]').forEach(tab => tab.setAttribute('aria-selected','false')); extra.setAttribute('aria-selected','true')") {
-            $0.otherTab && !$0.ready && $0.reason == "Auto-refresh covers For you and Following only"
+            $0.otherTab && $0.ready && $0.selected == -1 && $0.reason.isEmpty
         }
     }
     func testFeedErrorIsReported() async throws {
         try await load(); defer { close() }
         try await change("var error=document.createElement('div'); error.dataset.testid='error-detail'; error.textContent='Something went wrong'; document.querySelector('main').append(error)") { $0.failed && !$0.ready }
     }
+    private func world(_ js: String) async throws -> Any? {
+        try await webView.evaluateJavaScript(js, in: nil, contentWorld: WebsiteAdapter.world)
+    }
+    private func restorePlace(_ id: String, _ offset: Double) async throws -> String? {
+        try await webView.callAsyncJavaScript("return await window.__xDesktop.restorePlace(id, offset)",
+            arguments: ["id": id, "offset": offset], in: nil, contentWorld: WebsiteAdapter.world) as? String
+    }
+
+    func testPlaceIsTakenOnlyWhenScrolledDownAndComesBackAfterAReload() async throws {
+        try await load(); defer { close() }
+        let atTop = try await world("window.__xDesktop.snapshot(true).place") as? [String: Any]
+        XCTAssertNil(atTop, "At the top of the feed there is no place to keep")
+        _ = try await webView.evaluateJavaScript("window.scrollTo(0, 700); true")
+        let place = try await world("window.__xDesktop.snapshot(true).place") as? [String: Any]
+        let id = try XCTUnwrap(place?["id"] as? String)
+        let offset = try XCTUnwrap((place?["offset"] as? NSNumber)?.doubleValue)
+        XCTAssertTrue(id.hasPrefix("10"), id)
+        let e = expectation(description: "Reloaded"); expected = { $0.ready && $0.feedTop }; pending = e
+        webView.reload()
+        await fulfillment(of: [e], timeout: 15)
+        let outcome = try await restorePlace(id, offset)
+        XCTAssertEqual(outcome, "restored")
+        let top = try await webView.evaluateJavaScript(
+            "[...document.querySelectorAll('article')].find(a => a.querySelector('a').getAttribute('href').endsWith('/\(id)')).getBoundingClientRect().top") as? Double
+        XCTAssertEqual(top ?? .nan, offset, accuracy: 2)
+        let marked = try await webView.evaluateJavaScript("[...document.body.children].some(e => e.textContent === 'You were here')") as? Bool
+        XCTAssertEqual(marked, true)
+    }
+
+    func testAMissingPlaceReturnsToTheTop() async throws {
+        try await load(); defer { close() }
+        let outcome = try await restorePlace("999999", 120)
+        XCTAssertEqual(outcome, "missing")
+        let scrolled = try await webView.evaluateJavaScript("document.scrollingElement.scrollTop") as? Double
+        XCTAssertEqual(scrolled, 0)
+        let invalid = try await restorePlace("12; alert(1)", 0)
+        XCTAssertEqual(invalid, "invalid")
+    }
+
+    func testOnlyXsOwnShowPostsButtonIsUsed() async throws {
+        try await load(); defer { close() }
+        _ = try await webView.evaluateJavaScript("var other=document.createElement('button'); other.textContent='Show more'; other.onclick=()=>document.body.dataset.wrong=1; document.querySelector('main').prepend(other); true")
+        let none = try await world("window.__xDesktop.showNewPosts()") as? Bool
+        XCTAssertEqual(none, false)
+        _ = try await webView.evaluateJavaScript("var pill=document.createElement('div'); pill.role='button'; pill.textContent='Show 35 posts'; pill.onclick=()=>document.body.dataset.shown=1; document.querySelector('main').prepend(pill); true")
+        let shown = try await world("window.__xDesktop.showNewPosts()") as? Bool
+        XCTAssertEqual(shown, true)
+        let clicked = try await webView.evaluateJavaScript("document.body.dataset.shown + '/' + document.body.dataset.wrong") as? String
+        XCTAssertEqual(clicked, "1/undefined")
+    }
+
     func testUnknownBridgeMessagesAreRejected() {
         XCTAssertNil(WebsiteState.decode(["home": true]))
         XCTAssertNil(WebsiteState.decode("bad"))

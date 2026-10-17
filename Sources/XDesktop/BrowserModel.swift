@@ -49,6 +49,17 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
     private(set) var findRequest = 0
     private(set) var findMissing = false
     var findQuery = ""
+    /// Seconds between automatic refreshes (Settings; RefreshInterval.choices).
+    private(set) var refreshInterval: Double
+    /// Whether a reload brings back the post at the top of the screen.
+    private(set) var keepsPlace: Bool
+    /// "For you", "Following", "Pinned tab", or empty away from Home. Kept through a reload.
+    private(set) var feedLabel = ""
+    /// Speaks a short status to VoiceOver. Tests replace it to listen.
+    var announce: @MainActor (String) -> Void = { text in
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
+    }
     let webView: WKWebView
     private(set) var page = WebsiteState.empty
     private(set) var schedule: RefreshSchedule
@@ -81,6 +92,11 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
     private var online = true
     private let pathMonitor = NWPathMonitor()
     private var titleObservation: NSKeyValueObservation?
+    /// The post a reload is replacing, to bring back once the same feed is ready again.
+    private var pendingPlace: (id: String, offset: Double, selected: Int, otherTab: Bool)?
+    /// Recent status lines with their times, for Help › Copy Diagnostics. Notices are left out:
+    /// they can name downloaded files.
+    private var statusHistory: [(Date, String)] = []
     private var downloadDestinations: [ObjectIdentifier: URL] = [:]
     private var popupWindows: [NSWindow] = []
     private var popupDelegates: [PopupDelegate] = []
@@ -105,10 +121,14 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
         self.defaults = defaults
         self.fixtureURL = fixtureURL
         self.windowVisible = windowVisible
-        defaults.register(defaults: ["autoRefresh": true, "pageZoom": 1.0, "followingRecent": true])
+        defaults.register(defaults: ["autoRefresh": true, "pageZoom": 1.0, "followingRecent": true,
+                                     "refreshInterval": RefreshInterval.standard, "keepPlace": true])
         autoRefresh = defaults.bool(forKey: "autoRefresh")
         followingRecent = defaults.bool(forKey: "followingRecent")
-        schedule = RefreshSchedule(enabled: defaults.bool(forKey: "autoRefresh"))
+        keepsPlace = defaults.bool(forKey: "keepPlace")
+        let interval = RefreshInterval.validated(defaults.double(forKey: "refreshInterval"))
+        refreshInterval = interval
+        schedule = RefreshSchedule(enabled: defaults.bool(forKey: "autoRefresh"), interval: interval)
         pageZoom = min(max(defaults.double(forKey: "pageZoom"), Self.zoomLevels.first!), Self.zoomLevels.last!)
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = fixtureURL == nil ? .default() : .nonPersistent()
@@ -237,6 +257,27 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
         defaults.set(autoRefresh, forKey: "autoRefresh")
         schedule.setEnabled(autoRefresh, now: now)
         updateStatus()
+        announce(autoRefresh ? "Auto-refresh resumed" : "Auto-refresh paused")
+    }
+
+    /// Settings accept only RefreshInterval.choices; tests may pass shorter intervals.
+    func setRefreshInterval(_ seconds: Double) {
+        guard seconds >= 1, seconds != refreshInterval else { return }
+        refreshInterval = seconds
+        defaults.set(seconds, forKey: "refreshInterval")
+        schedule.setInterval(seconds, now: now)
+        updateStatus()
+    }
+
+    func toggleKeepsPlace() {
+        keepsPlace.toggle()
+        defaults.set(keepsPlace, forKey: "keepPlace")
+    }
+
+    /// Opens an X link from another app (the Dock icon or the Services menu) in this window.
+    func open(_ url: URL) {
+        guard NavigationPolicy.isX(url) else { showNotice("Only x.com links open in this app."); return }
+        confirmDiscard(action: "Discard and Open Link") { [weak self] in self?.webView.load(URLRequest(url: url)) }
     }
 
     func toggleFollowingRecent() {
@@ -396,12 +437,18 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
         checkingRefresh = true
         // Consult the renderer immediately before reload, rather than trusting a
         // half-second-old observer message when a user may just have begun typing.
-        webView.evaluateJavaScript("window.__xDesktop?.snapshot()", in: nil, in: WebsiteAdapter.world) { [weak self] result in
+        webView.evaluateJavaScript("window.__xDesktop?.snapshot(\(keepsPlace))", in: nil, in: WebsiteAdapter.world) { [weak self] result in
             guard let self else { return }
             self.checkingRefresh = false
             guard !self.schedule.loading else { return }
+            var place: (id: String, offset: Double, selected: Int, otherTab: Bool)?
             if case .success(let body) = result, let fresh = WebsiteState.decode(body as Any) {
                 self.page = fresh
+                if let anchor = (body as? [String: Any])?["place"] as? [String: Any],
+                   let id = anchor["id"] as? String, let offset = (anchor["offset"] as? NSNumber)?.doubleValue,
+                   fresh.home, fresh.recognized || fresh.otherTab {
+                    place = (id, offset, fresh.selected, fresh.otherTab)
+                }
             } else if !manual && self.schedule.retryAt == nil {
                 // A retry reloads the page, which reinstalls the adapter.
                 self.fail("Refresh paused: website state is unavailable.")
@@ -411,6 +458,7 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
                 self.confirmDiscard(action: "Discard and Reload") { [weak self] in
                     guard let self, !self.schedule.loading else { return }
                     self.startNavigation()
+                    self.pendingPlace = place
                     self.reloadDocument()
                 }
                 return
@@ -424,10 +472,37 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
                     self.updateStatus()
                     return
                 }
+                // A timed refresh at the top of the feed first takes X's own "Show N posts"
+                // button, if X is offering one; a reload is the fallback.
+                if requiresAutomatic && !retrying && self.page.home && self.page.feedTop {
+                    self.checkingRefresh = true
+                    self.webView.evaluateJavaScript("window.__xDesktop?.showNewPosts()", in: nil, in: WebsiteAdapter.world) { [weak self] shown in
+                        guard let self else { return }
+                        self.checkingRefresh = false
+                        guard !self.schedule.loading else { return }
+                        if case .success(let value) = shown, value as? Bool == true {
+                            self.showedNewPosts()
+                        } else {
+                            self.startNavigation()
+                            self.reloadDocument()
+                        }
+                    }
+                    return
+                }
             }
             self.startNavigation()
+            self.pendingPlace = place
             self.reloadDocument()
         }
+    }
+
+    /// X showed its waiting posts in place: a refresh without a reload.
+    private func showedNewPosts() {
+        lastRefresh = Date()
+        schedule.succeeded(now: now)
+        updateEligibility()
+        updateStatus()
+        announce("New posts shown")
     }
 
     /// Only a detected draft justifies interrupting an explicit navigation. Media,
@@ -469,6 +544,7 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
         feedFailed = false
         connectionFailed = false
         restoreAcknowledged = false
+        pendingPlace = nil
         restoreFeed = defaults.object(forKey: "selectedFeed") as? Int
         if !(0...1).contains(restoreFeed ?? -1) { restoreFeed = nil }
         page = .empty
@@ -495,10 +571,25 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
         schedule.succeeded(now: now)
         if page.ready && !page.restoreFailed {
             lastRefresh = Date()
-            defaults.set(page.selected, forKey: "selectedFeed")
+            // A pinned tab is X's own choice to remember; only For you and Following are saved.
+            if page.recognized { defaults.set(page.selected, forKey: "selectedFeed") }
+            announce("Feed refreshed")
+        }
+        if let place = pendingPlace {
+            pendingPlace = nil
+            if page.ready && page.selected == place.selected && page.otherTab == place.otherTab { restore(place) }
         }
         updateEligibility()
         updateStatus()
+    }
+
+    private func restore(_ place: (id: String, offset: Double, selected: Int, otherTab: Bool)) {
+        webView.callAsyncJavaScript("return await window.__xDesktop?.restorePlace(id, offset)",
+                                    arguments: ["id": place.id, "offset": place.offset], in: nil, in: WebsiteAdapter.world) { [weak self] result in
+            guard let self, case .success(let value) = result, let outcome = value as? String else { return }
+            if outcome == "missing" { self.showNotice("Your place wasn't in the refreshed feed.") }
+            if outcome == "restored" { self.announce("Back at your place in the feed") }
+        }
     }
 
     /// The saved feed is showing, or the adapter has stopped pursuing it: the reader
@@ -520,10 +611,12 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
         loading = false
         loadStarted = nil
         errorMessage = message
+        pendingPlace = nil
         schedule.failed(now: now, retryAfter: retryAfter, requiresManual: manual)
         cancelPull()
         updateEligibility()
         updateStatus()
+        announce(message)
     }
 
     private func requestState() {
@@ -535,6 +628,13 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
         guard mainWindow != nil, adapterForeground != foregroundAvailable else { return }
         adapterForeground = foregroundAvailable
         webView.evaluateJavaScript("window.__xDesktop?.setForeground(\(foregroundAvailable))", in: nil, in: WebsiteAdapter.world) { _ in }
+    }
+
+    fileprivate func showNoticeMessage(_ message: String) { showNotice(message) }
+    fileprivate var environmentPausedKeys: [String] { environmentPaused.sorted() }
+    fileprivate var windowCanBeSeen: Bool {
+        guard let mainWindow else { return false }
+        return mainWindow.isVisible && !mainWindow.isMiniaturized && windowVisible(mainWindow)
     }
 
     private func showNotice(_ message: String, action: Notice.Action? = nil) {
@@ -589,10 +689,16 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
             if !autoRefresh { text = "Auto-refresh paused" + (page.home ? refreshed : "") }
             else if !environmentPaused.isEmpty { text = "Auto-refresh suspended" }
             else if !page.reason.isEmpty { text = page.reason }
-            else if page.ready { text = (page.feedTop ? "Auto-refresh every 60s" : "Auto-refresh waits while you read") + refreshed }
+            else if page.ready { text = (page.feedTop ? "Auto-refresh \(RefreshInterval.phrase(refreshInterval))" : "Auto-refresh waits while you read") + refreshed }
             else { text = "Waiting for the home feed" }
         }
-        if text != status { status = text }
+        if text != status {
+            status = text
+            if notice == nil {
+                statusHistory.append((Date(), text))
+                if statusHistory.count > 30 { statusHistory.removeFirst(statusHistory.count - 30) }
+            }
+        }
         let counting = text.hasPrefix("Auto-refresh every") ? schedule.deadline : nil
         if counting != countdownDeadline {
             countdownDeadline = counting
@@ -651,6 +757,10 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
         let previous = page
         page = value
         if !hasContent { hasContent = true }
+        // The label survives a reload's blank moment and changes only once the adapter knows the feed.
+        let label = value.home ? (value.recognized ? (value.selected == 0 ? "For you" : "Following") : value.otherTab ? "Pinned tab" : feedLabel)
+                               : (documentLoaded ? "" : feedLabel)
+        if label != feedLabel { feedLabel = label }
         // A swipe cannot ask first, so it waits until any draft is resolved.
         if webView.allowsBackForwardNavigationGestures == value.draft { webView.allowsBackForwardNavigationGestures = !value.draft }
         if value.protected || !value.home { cancelPull() }
@@ -922,5 +1032,79 @@ private final class PopupDelegate: NSObject, NSWindowDelegate, WKNavigationDeleg
             window.close()
             self.onReturnedToX()
         }
+    }
+}
+
+extension BrowserModel {
+    /// Why automatic refresh is or isn't about to happen, for the status strip's popover.
+    var refreshDetails: [String] {
+        var lines: [String] = []
+        if let errorMessage {
+            lines.append(errorMessage)
+            if let retryAt = schedule.retryAt {
+                let seconds = max(0, Int((retryAt - ProcessInfo.processInfo.systemUptime).rounded(.up)))
+                lines.append("The app retries in \(RefreshInterval.remaining(seconds)) while the window is visible.")
+            } else if schedule.manualRetryRequired {
+                lines.append("Choose Retry or Refresh to continue.")
+            }
+        }
+        if !autoRefresh { lines.append("Automatic refresh is paused. Refresh and pull to refresh still work.") }
+        let reasons = ["sleep": "The Mac is asleep.", "display": "The display is asleep.", "locked": "The screen is locked.",
+                       "session": "Another user is using the Mac.", "closed": "The window is closed.",
+                       "hidden": "X is hidden.", "authentication": "A sign-in window is open."]
+        lines += environmentPausedKeys.compactMap { reasons[$0] }
+        if environmentPausedKeys.isEmpty && !windowCanBeSeen {
+            lines.append("The window is minimized, on another Space, or covered.")
+        }
+        if !page.home && hasContent { lines.append("Automatic refresh runs on Home only.") }
+        if page.protected && !page.reason.isEmpty { lines.append(page.reason + ".") }
+        if page.home && page.ready && !page.feedTop {
+            lines.append("You're scrolled down, so refresh waits until you're back at the top or two minutes pass without input.")
+        }
+        if page.active { lines.append("Refresh waits until scrolling, pointer movement and typing stop.") }
+        if lines.isEmpty && autoRefresh && page.ready {
+            lines.append("Refreshes \(RefreshInterval.phrase(refreshInterval)) while the window is visible and you're at the top of the feed.")
+        }
+        return lines
+    }
+
+    /// A plain-text report for bug reports: the app's state and recent status lines, with no
+    /// addresses, account names or post content.
+    func diagnostics(updates: String) -> String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let version = "\(info["CFBundleShortVersionString"] as? String ?? "?") (\(info["CFBundleVersion"] as? String ?? "?"))"
+        #if arch(arm64)
+        let arch = "arm64"
+        #else
+        let arch = "x86_64"
+        #endif
+        let yes = { (value: Bool) in value ? "yes" : "no" }
+        let feed = page.recognized ? (page.selected == 0 ? "For you" : "Following") : page.otherTab ? "pinned tab" : "none"
+        let uptime = ProcessInfo.processInfo.systemUptime
+        let retry = schedule.retryAt.map { "in \(max(0, Int($0 - uptime)))s" } ?? "none"
+        let next = schedule.deadline.map { "in \(max(0, Int($0 - uptime)))s" } ?? "none"
+        let time = { (date: Date) in date.formatted(date: .omitted, time: .standard) }
+        var lines = [
+            "X for macOS \(version)",
+            "macOS \(ProcessInfo.processInfo.operatingSystemVersionString), \(arch)",
+            "Updates: \(updates)",
+            "Auto-refresh: \(autoRefresh ? "on" : "paused"), \(RefreshInterval.phrase(refreshInterval)); keep place: \(yes(keepsPlace)); Following Recent: \(yes(followingRecent))",
+            "Window visible: \(yes(windowCanBeSeen)); suspended for: \(environmentPausedKeys.isEmpty ? "nothing" : environmentPausedKeys.joined(separator: ", "))",
+            "Page: home \(yes(page.home)), recognized \(yes(page.recognized)), ready \(yes(page.ready)), feed \(feed), at top \(yes(page.feedTop)), protected \(yes(page.protected)), draft \(yes(page.draft)), X error \(yes(page.failed)), active \(yes(page.active))",
+            "Adapter: \(page.reason.isEmpty ? "no reason given" : page.reason)",
+            "Schedule: loading \(yes(schedule.loading)), failures \(schedule.failures), retry \(retry), manual retry \(yes(schedule.manualRetryRequired)), next refresh \(next)",
+            "Error: \(errorMessage ?? "none")",
+            "Last refresh: \(lastRefresh.map(time) ?? "none")",
+            "Recent status:"
+        ]
+        lines += statusHistory.map { "  \(time($0.0))  \($0.1)" }
+        return lines.joined(separator: "\n")
+    }
+
+    func copyDiagnostics(updates: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(diagnostics(updates: updates), forType: .string)
+        showNoticeMessage("Copied diagnostics. Paste them into your report.")
     }
 }

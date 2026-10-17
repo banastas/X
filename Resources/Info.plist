@@ -15,5 +15,18 @@
 <key>LSApplicationCategoryType</key><string>public.app-category.news</string>
 <key>NSCameraUsageDescription</key><string>Allow X to use the camera when you choose a website feature that needs it.</string>
 <key>NSMicrophoneUsageDescription</key><string>Allow X to use the microphone when you choose a website feature that needs it.</string>
+<key>NSServices</key><array><dict>
+  <key>NSMenuItem</key><dict><key>default</key><string>Open in X for macOS</string></dict>
+  <key>NSMessage</key><string>openXLink</string>
+  <key>NSPortName</key><string>X</string>
+  <key>NSRequiredContext</key><dict/>
+  <key>NSSendTypes</key><array><string>public.url</string><string>public.utf8-plain-text</string></array>
+</dict></array>
+<key>CFBundleDocumentTypes</key><array><dict>
+  <key>CFBundleTypeName</key><string>Web link</string>
+  <key>CFBundleTypeRole</key><string>Viewer</string>
+  <key>LSHandlerRank</key><string>None</string>
+  <key>LSItemContentTypes</key><array><string>public.url</string><string>com.apple.web-internet-location</string></array>
+</dict></array>
 <key>NSHumanReadableCopyright</key><string>Personal unofficial desktop wrapper. X branding belongs to its owner.</string>
 </dict></plist>
