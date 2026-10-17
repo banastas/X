@@ -39,22 +39,28 @@ enum LoginItem {
 
 /// Posts a notification when X's unread count rises while the app is in the background. Only the
 /// count in X's page title is used, never post content. Off unless the person turns it on.
+/// UnreadTracker keeps a reload's momentary bare title from counting as a new notification.
 @MainActor
 final class UnreadNotifier {
-    private var lastCount: Int?
+    private var tracker = UnreadTracker()
 
     static var available: Bool { Bundle.main.bundleIdentifier != nil }
 
-    func update(badge: String?, enabled: Bool) {
-        let count = badge.flatMap { Int($0.trimmingCharacters(in: CharacterSet(charactersIn: "+"))) } ?? 0
-        defer { lastCount = count }
-        guard enabled, Self.available, let lastCount, count > lastCount, !NSApp.isActive, let badge else { return }
+    func update(badge: String?, loading: Bool, enabled: Bool) {
+        let count = UnreadTracker.count(from: badge)
+        guard tracker.update(count: count, loading: loading, inBackground: !NSApp.isActive),
+              enabled, Self.available, let badge else { return }
         let content = UNMutableNotificationContent()
         content.title = "X"
         content.body = count == 1 ? "1 unread notification" : "\(badge) unread notifications"
         // One identifier, so a newer count replaces the older notification instead of stacking.
         let request = UNNotificationRequest(identifier: "unread", content: content, trigger: nil)
         Task { try? await UNUserNotificationCenter.current().add(request) }
+    }
+
+    /// The app came forward, so the badge it shows is known.
+    func seen(badge: String?, loading: Bool) {
+        tracker.seen(count: UnreadTracker.count(from: badge), loading: loading)
     }
 
     static func requestPermission() async -> Bool {

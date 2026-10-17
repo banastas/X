@@ -76,12 +76,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         // X's title carries the unread notification count; show it on the Dock icon,
         // and name the window after the page for the Window menu and Mission Control.
         let model = self.model!, namesWindow = fixture == nil
+        // A reload briefly leaves the title without its count; the badge and window title wait for
+        // the page to settle, and the notifier ignores those readings (UnreadTracker).
         titleUpdates = Task { [weak self] in
-            for await title in Observations({ model.pageTitle }) {
+            for await (title, loading) in Observations({ (model.pageTitle, model.loading) }) {
                 let badge = PageTitle.badge(title)
-                NSApp.dockTile.badgeLabel = badge
-                if namesWindow { self?.window.title = PageTitle.text(title) }
-                if let self { self.notifier.update(badge: badge, enabled: self.preferences.notifyUnread) }
+                if !loading {
+                    NSApp.dockTile.badgeLabel = badge
+                    if namesWindow { self?.window.title = PageTitle.text(title) }
+                }
+                if let self { self.notifier.update(badge: badge, loading: loading, enabled: self.preferences.notifyUnread) }
             }
         }
         // Services › Open in X for macOS, for an x.com link selected in another app.
@@ -150,6 +154,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     func windowDidMiniaturize(_ notification: Notification) { model.windowVisibilityChanged() }
     func windowDidDeminiaturize(_ notification: Notification) { model.windowVisibilityChanged() }
     func windowDidChangeOcclusionState(_ notification: Notification) { model.windowVisibilityChanged() }
+    func applicationDidBecomeActive(_ notification: Notification) {
+        notifier.seen(badge: PageTitle.badge(model.pageTitle), loading: model.loading)
+    }
     func applicationDidHide(_ notification: Notification) { model.setSuspended("hidden", paused: true) }
     func applicationDidUnhide(_ notification: Notification) { model.setSuspended("hidden", paused: false) }
     func windowDidResignKey(_ notification: Notification) { model.cancelGesture() }

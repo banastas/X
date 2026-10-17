@@ -281,3 +281,36 @@ final class XLinkTests: XCTestCase {
         }
     }
 }
+
+final class UnreadTrackerTests: XCTestCase {
+    func testTheSameUnreadCountNotifiesOnceAcrossRefreshes() {
+        var tracker = UnreadTracker()
+        XCTAssertFalse(tracker.update(count: 1, loading: false, inBackground: true), "The first reading only sets the baseline")
+        for _ in 0..<5 {
+            // A refresh: the title loses its count while loading, then gets it back.
+            XCTAssertFalse(tracker.update(count: 0, loading: true, inBackground: true))
+            XCTAssertFalse(tracker.update(count: 1, loading: true, inBackground: true))
+            XCTAssertFalse(tracker.update(count: 1, loading: false, inBackground: true))
+        }
+        // A bare title outside a load, in the background, doesn't lower the baseline either.
+        XCTAssertFalse(tracker.update(count: 0, loading: false, inBackground: true))
+        XCTAssertFalse(tracker.update(count: 1, loading: false, inBackground: true))
+        XCTAssertTrue(tracker.update(count: 2, loading: false, inBackground: true), "A real increase notifies")
+        XCTAssertFalse(tracker.update(count: 2, loading: false, inBackground: true))
+    }
+
+    func testForegroundReadingsAndActivationResetTheBaseline() {
+        var tracker = UnreadTracker()
+        _ = tracker.update(count: 3, loading: false, inBackground: false)
+        XCTAssertFalse(tracker.update(count: 4, loading: false, inBackground: false), "No alert while the app is in front")
+        XCTAssertEqual(tracker.baseline, 4)
+        XCTAssertFalse(tracker.update(count: 0, loading: false, inBackground: false), "Read in front: the baseline drops")
+        XCTAssertTrue(tracker.update(count: 1, loading: false, inBackground: true))
+        tracker.seen(count: 0, loading: false)
+        XCTAssertEqual(tracker.baseline, 0)
+        tracker.seen(count: 5, loading: true)
+        XCTAssertEqual(tracker.baseline, 0, "A reading during a load is not what the person saw")
+        XCTAssertEqual(UnreadTracker.count(from: "20+"), 20)
+        XCTAssertEqual(UnreadTracker.count(from: nil), 0)
+    }
+}
