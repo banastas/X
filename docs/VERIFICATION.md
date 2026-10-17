@@ -1,6 +1,20 @@
-# Verification: X 0.4.0
+# Verification: X 0.5.1
 
-## Settings, place keeping and more (unreleased)
+## Unread notifications fix (0.5.1)
+
+With notifications on and one unread notification, 0.5.0 alerted again on every refresh. Each reload briefly leaves X's title without its "(N)" prefix, and the notifier counted that as 0 followed by a new 1. 0.5.1 moves the rule into `UnreadTracker` (XCore):
+
+- readings taken while a page is loading are ignored;
+- while the app is in the background, a lower count never lowers the baseline;
+- bringing the app forward makes the current count the baseline.
+
+The Dock badge and window title also wait for the page to settle, so they no longer blink on each refresh.
+
+- All **89 XCTest tests passed with zero failures** (54 desktop/WebKit and 35 core) in the release run. Two new tracker tests replay five refreshes with the count dropping and returning (no alerts), then a real increase (one alert).
+- The release was built with the cloud-managed Developer ID, notarized (accepted), stapled, and published as build 202610171227.
+- One earlier full-suite run, outside the release, timed out in `WheelRefreshTests.testCoarseAndPreciseWheelsReloadOnceAndKeepFollowingWhilePaused`. The class then passed five runs in a row on its own. The likely cause is the Mac's display sleeping during the long run, which suspends refresh as designed. It is recorded here as an intermittent test, not a defect.
+
+## Settings, place keeping and more (0.5.0)
 
 Added on October 17, 2026:
 

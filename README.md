@@ -33,7 +33,7 @@ To uninstall, quit X and move the installed app to Trash. Removing the app does 
 
 The app displays X's website inside Apple's `WKWebView`; it does not recreate the timeline or fetch posts through the X API. There is no hosted backend, API key, or app-managed post database. You sign into your own X account, and X controls the content and recommendations you see. A refresh does not guarantee new posts, and your place can't come back if X no longer shows that post near the top of the reloaded feed.
 
-**Current version: 0.4.0.** See [verification](docs/VERIFICATION.md) for automated coverage and live checks of the Following sort default. Core browsing and refresh behavior were checked during 0.1.x; the other 0.2.0 fixes remain covered by local fixture tests. There is no App Store release; you can also [build it from source](#build-from-source).
+**Current version: 0.5.1.** See [verification](docs/VERIFICATION.md) for automated coverage and live checks of the Following sort default. Core browsing and refresh behavior were checked during 0.1.x; the other 0.2.0 fixes remain covered by local fixture tests. There is no App Store release; you can also [build it from source](#build-from-source).
 
 ## Everyday controls
 
