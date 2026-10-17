@@ -1,6 +1,12 @@
-# Verification: X 0.2.1
+# Verification: X 0.4.0
 
-## QA fixes and improvements (unreleased)
+## First update through Sparkle (0.3.0 → 0.4.0)
+
+On October 17, 2026, 0.4.0 was published with `PUBLISH=1 VERSION=0.4.0 scripts/release.sh` (build 202610170740, without `INSTALL`), so the installed 0.3.0 had to update itself. Cloudflare Pages queued the deployment for several minutes behind the account's one concurrent build, then served it at 07:49. The feed then reported 0.4.0, build 202610170740 and a 27.0 minimum, and the new zip returned 200.
+
+In the copy of 0.3.0 (202610170703) installed in /Applications, **X › Check for Updates…** offered 0.4.0 with its release notes. **Install Update** and **Install and Relaunch** completed, and X › About X then showed 0.4.0. The sign-in, the feed, zoom, the auto-refresh setting and the status-strip countdown carried over. This confirms the whole release chain: the cloud-managed Developer ID export, notarization, the update feed, the EdDSA signature check, and Sparkle's install and relaunch.
+
+## QA fixes and improvements (0.3.0)
 
 An October 17, 2026 code review found two adapter failure modes. Both were reproduced against local fixtures before they were fixed:
 
@@ -16,7 +22,7 @@ Interface and functionality additions: Stop while loading (toolbar and `⌘.`), 
 
 Not yet verified by hand: the “Not found” and Escape behavior of the find bar, `⌥⌘2`, Save Image against live X media, the Dock badge with real notifications, the confirmation sheets with a live draft, the Stop button, the offline launch state, and reconnect retry. None of these changes has been checked against the live website.
 
-## macOS 27 and later only (unreleased)
+## macOS 27 and later only (0.4.0)
 
 The deployment target is now macOS 27 (`Package.swift`, `LSMinimumSystemVersion`), as for Blit, Rune and Cue, so the app is Apple silicon only; `scripts/build-app.sh` no longer offers a universal build, and `scripts/release.sh` no longer takes `ARCH`. The code had no availability checks to remove. `BrowserModel` moved from `ObservableObject` and `@Published` to Observation (`@Observable`), so each view redraws only for the properties it reads; the Dock badge and window title follow `pageTitle` through `Observations`, which needs macOS 26 or later; and launch uses `NSApp.activate()` instead of `activate(ignoringOtherApps:)`. Version 0.3.0 was the last release for macOS 14 through 26: Sparkle doesn't offer an update whose minimum is above the running system, so those copies stay on 0.3.0.
 
@@ -24,7 +30,7 @@ The deployment target is now macOS 27 (`Package.swift`, `LSMinimumSystemVersion`
 - Release and debug builds passed with warnings treated as errors; the release binary's `LC_BUILD_VERSION` reports `minos 27.0`. `scripts/build-app.sh release universal` exits with its usage message.
 - A fixture launch through Launch Services (`open -n dist/X.app --args --fixture …`) loaded the feed, showed the countdown (“Next refresh in 55s”) and switched the toolbar's Stop back to Refresh after loading. Two findings from testing, neither a defect: with cooperative activation, a copy started from a background shell opens behind the frontmost app, so the window counts as covered, and rendering and auto-refresh wait, as designed; and a copy launched through Launch Services needs macOS's permission to read a fixture on an external volume, so the fixture was served from a local folder.
 
-## Updates through Sparkle (unreleased)
+## Updates through Sparkle (0.3.0)
 
 Published builds now update the way Blit, Rune and Cue do: Sparkle 2.10.0, a daily check of `https://x.banast.as/appcast.xml`, and updates signed with the family's EdDSA key. `scripts/release.sh` makes them (Developer ID, hardened runtime, notarization, publishing to `site/`), and Cloudflare Pages serves `site/` at x.banast.as. Only builds made by `release.sh` carry the feed, and the updater starts only in a Release build installed in an Applications folder (`UpdatePolicy`, `Updates`).
 
@@ -34,7 +40,7 @@ Published builds now update the way Blit, Rune and Cue do: Sparkle 2.10.0, a dai
 - `scripts/release.sh` signs with the family's cloud-managed Developer ID certificate. It builds with the team's Apple Development identity, wraps the app in an Xcode archive, and exports it with `xcodebuild -exportArchive` (developer-id, automatic signing), as Cue does. A run with `SKIP_NOTARIZE=1 SKIP_TESTS=1 VERSION=0.3.0` exported an app signed `Developer ID Application: William T Anastas (F87BNUZAVJ)`. The app, the framework, and Sparkle's Installer and Downloader services, Autoupdate and Updater.app each kept the hardened runtime and a secure timestamp. The app kept the camera and microphone entitlements, `SUFeedURL`, `SUPublicEDKey`, version 0.3.0 and a time-based build number. The script checks each of these before it notarizes.
 - The site page was checked in a browser from the file. Its Download button stays off until `appcast.xml` exists.
 
-Not yet done: notarization, the first published release, and a real update from one published build to the next.
+0.3.0 was the first notarized, published release, and the first update from it is recorded above.
 
 ## Following sort default (0.2.1)
 

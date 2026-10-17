@@ -29,7 +29,7 @@ To uninstall, quit X and move the installed app to Trash. Removing the app does 
 
 The app displays X's website inside Apple's `WKWebView`; it does not recreate the timeline or fetch posts through the X API. There is no hosted backend, API key, or app-managed post database. You sign into your own X account, and X controls the content and recommendations you see. A reload may reset your reading position and does not guarantee new posts.
 
-**Current version: 0.3.0.** See [verification](docs/VERIFICATION.md) for automated coverage and live checks of the Following sort default. Core browsing and refresh behavior were checked during 0.1.x; the other 0.2.0 fixes remain covered by local fixture tests. There is no App Store release; you can also [build it from source](#build-from-source).
+**Current version: 0.4.0.** See [verification](docs/VERIFICATION.md) for automated coverage and live checks of the Following sort default. Core browsing and refresh behavior were checked during 0.1.x; the other 0.2.0 fixes remain covered by local fixture tests. There is no App Store release; you can also [build it from source](#build-from-source).
 
 ## Everyday controls
 
@@ -238,7 +238,7 @@ The packaging script already treats compiler warnings as errors, bundles Sparkle
 ```sh
 scripts/release.sh                                                    # build, notarize, staple
 INSTALL=1 scripts/release.sh                                          # …and replace /Applications/X.app
-PUBLISH=1 INSTALL=1 VERSION=0.3.0 NOTES="What changed" scripts/release.sh   # …and publish it
+PUBLISH=1 INSTALL=1 VERSION=0.4.1 NOTES="What changed" scripts/release.sh   # …and publish it
 ```
 
 `PUBLISH=1` runs only on a clean `main`. It signs the zip with the family's Sparkle key (the same as Blit, Rune and Cue), writes `site/appcast.xml` and `site/downloads/`, commits them and pushes `main`; Cloudflare Pages then serves `site/` at x.banast.as. Publishing makes the download public. See [site/README.md](site/README.md) for hosting.
