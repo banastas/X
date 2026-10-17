@@ -6,13 +6,13 @@
     <description>Updates for X for macOS</description>
     <language>en</language>
     <item>
-      <title>X for macOS 0.3.0</title>
-      <pubDate>Sat, 17 Oct 2026 14:04:10 +0000</pubDate>
-      <sparkle:version>202610170703</sparkle:version>
-      <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<p>QA fixes, find, Stop, Dock badge, image saving, and automatic updates</p>]]></description>
-      <enclosure url="https://x.banast.as/downloads/X-0.3.0-202610170703.zip" type="application/octet-stream" sparkle:edSignature="G1e80T+M0k+5RIC84WhwSvq07R5ehcQm9jV4ZB51XrqGrOdTFYpWmjs5AORfLUTZNxB1wx/+NsDQa7tlJ/r0CA==" length="3150225" />
+      <title>X for macOS 0.4.0</title>
+      <pubDate>Sat, 17 Oct 2026 14:41:52 +0000</pubDate>
+      <sparkle:version>202610170740</sparkle:version>
+      <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<p>Requires macOS 27. Faster redraws, Apple silicon only.</p>]]></description>
+      <enclosure url="https://x.banast.as/downloads/X-0.4.0-202610170740.zip" type="application/octet-stream" sparkle:edSignature="29TMVNJoy3nAcLRFnfgCfYsBHDJ7FUDbN3g8m2YetAsIOe6FfAjgInCuCUvgX51Qfr+aoYvdEkQRcJPGYC21Bg==" length="3167316" />
     </item>
   </channel>
 </rss>
