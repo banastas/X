@@ -257,11 +257,51 @@ final class AdapterTests: XCTestCase, WKScriptMessageHandler {
         XCTAssertTrue(WebsiteState.decode(snapshot as Any)?.ready == true)
         try await change("document.querySelector('#feed').replaceChildren()") { !$0.ready }
     }
-    func testMutingAutoplayVideoResumesRefresh() async throws {
+    /// Polls a page-world expression, since muting arrives in a media event after the call returns.
+    private func waitFor(_ js: String) async throws {
+        for _ in 0..<80 {
+            if try await webView.evaluateJavaScript(js) as? Bool == true { return }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTFail("Page never satisfied \(js)")
+    }
+    func testUnrequestedSoundIsMutedAndDoesNotPauseRefresh() async throws {
         try await load(); defer { close() }
-        try await change("var media=document.createElement('video'); media.src='silence.wav'; media.loop=true; document.body.append(media); media.play(); void 0") { $0.protected }
-        try await change("media.muted=true") { !$0.protected && $0.ready }
-        try await change("media.muted=false") { $0.protected }
+        _ = try await webView.evaluateJavaScript("var media=document.createElement('video'); media.src='silence.wav'; media.loop=true; document.body.append(media); media.play(); void 0")
+        try await waitFor("media.muted && !media.paused")
+        let snapshot = try await webView.evaluateJavaScript("window.__xDesktop.snapshot()", in: nil, contentWorld: WebsiteAdapter.world)
+        XCTAssertEqual(WebsiteState.decode(snapshot as Any)?.protected, false)
+        // A script unmuting a playing video, as X does when it remembers an earlier unmute.
+        _ = try await webView.evaluateJavaScript("media.muted=false; void 0")
+        try await waitFor("media.muted")
+        _ = try await webView.evaluateJavaScript("var sound=document.createElement('audio'); sound.src='silence.wav'; sound.loop=true; document.body.append(sound); sound.play(); void 0")
+        try await waitFor("sound.muted")
+    }
+    func testPressingThePlayerAllowsSound() async throws {
+        try await load(); defer { close() }
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 700), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.contentView = webView
+        window.orderBack(nil)
+        defer { window.close() }
+        _ = try await webView.evaluateJavaScript("var player=document.createElement('div'); player.dataset.testid='videoPlayer'; player.style.cssText='position:fixed;left:0;top:0;width:200px;height:200px;z-index:9'; document.body.append(player); void 0")
+        // A real click on the player, delivered to the web view rather than posted to the system.
+        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+            let event = NSEvent.mouseEvent(with: type, location: NSPoint(x: 100, y: 600), modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
+                eventNumber: 0, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)!
+            if type == .leftMouseDown { webView.mouseDown(with: event) } else { webView.mouseUp(with: event) }
+        }
+        // X mounts the video inside the player after the press.
+        try await change("var media=document.createElement('video'); media.src='silence.wav'; media.loop=true; player.append(media); media.play(); void 0") { $0.protected }
+        try await Task.sleep(for: .milliseconds(300))
+        let muted = try await webView.evaluateJavaScript("media.muted") as? Bool
+        XCTAssertEqual(muted, false)
+        // The reader's player keeps its sound through X's own mute and unmute.
+        _ = try await webView.evaluateJavaScript("media.muted=true; media.muted=false; void 0")
+        try await Task.sleep(for: .milliseconds(300))
+        let unmuted = try await webView.evaluateJavaScript("!media.muted && !media.paused") as? Bool
+        XCTAssertEqual(unmuted, true)
     }
     func testReadingPositionAndInteractionAreReported() async throws {
         try await load(); defer { close() }

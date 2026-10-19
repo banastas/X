@@ -303,10 +303,13 @@
                       'fullscreenchange', 'webkitfullscreenchange', 'popstate', 'hashchange']) {
     document.addEventListener(name, soon, true);
   }
+  // The player the reader last pressed, so media X mounts in it just after the press counts too.
+  let pressedPlayer = null;
   const markWatching = event => {
     if (!event.isTrusted || !(event.target instanceof Element)) return;
     const container = event.target.closest('video,audio,[data-testid="videoPlayer"],[data-testid="videoComponent"]');
     if (!container) return;
+    pressedPlayer = container;
     const media = container.matches('video,audio') ? [container] : all('video,audio', container);
     media.forEach(element => activelyWatched.add(element));
   };
@@ -316,6 +319,23 @@
     press(event);
     if (event.key === ' ' || event.key === 'Enter') markWatching(event);
     touch(); soon();
+  }, true);
+  // Sound stays off until the reader asks for it. X remembers an earlier unmute and starts later
+  // feed videos with sound, and WebKit treats this app's own scripted clicks and scrolls as user
+  // gestures, so its autoplay policy cannot tell either apart. Media may be heard only after the
+  // reader presses its player, or, for audio such as a Space, presses anything just before it starts.
+  const pressedRecently = () => performance.now() - lastPress < 3000;
+  const silence = event => {
+    const media = event.target;
+    if (!(media instanceof HTMLMediaElement) || media.muted || media.volume === 0 || activelyWatched.has(media)) return;
+    if (pressedRecently() && (media.tagName === 'AUDIO' || pressedPlayer?.contains(media))) activelyWatched.add(media);
+    else media.muted = true;
+  };
+  document.addEventListener('play', silence, true);
+  document.addEventListener('volumechange', silence, true);
+  // X may reuse a player element for another post; a new source needs a new press.
+  document.addEventListener('loadstart', event => {
+    if (!pressedRecently()) activelyWatched.delete(event.target);
   }, true);
   // Only a real click or key press on a feed tab counts as the reader choosing a feed.
   document.addEventListener('click', event => {
