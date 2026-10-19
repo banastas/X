@@ -1,4 +1,13 @@
-# Verification: X 0.5.1
+# Verification: X 0.5.2
+
+## Sound off by default (0.5.2)
+
+Feed videos could start playing with sound on their own. X remembers an earlier unmute and starts later videos unmuted. WebKit's autoplay policy could not catch that, because it treats the app's own scripted clicks and scrolls (refresh, place keeping, Show N posts) as user gestures. The adapter now mutes any video or audio that plays or unmutes unless the reader has pressed its player. Media X mounts in that player within three seconds of the press counts, and so does audio without a player (such as a Space) that starts within three seconds of any press. A player that loads a new source needs a new press.
+
+- All **90 XCTest tests passed with zero failures** (55 desktop/WebKit and 35 core). The old test that expected a scripted unmute to stick now expects it to be undone. A new one checks that an unrequested video and audio element are muted without pausing refresh. Another delivers a real click to the web view (not posted to the system) and checks that a video mounted in the pressed player keeps its sound through a mute and unmute.
+
+Not yet verified by hand: sound after clicking a video or its unmute button on the live site, and Spaces audio.
+
 
 ## Unread notifications fix (0.5.1)
 
