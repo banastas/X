@@ -65,6 +65,8 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
     private(set) var schedule: RefreshSchedule
     /// Seconds a navigation may take to reach a ready state before it is treated as failed.
     var loadTimeout: Double = 45
+    /// Where downloads are saved. Tests use a temporary folder.
+    var downloadsFolder = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
     static let zoomLevels: [Double] = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3]
     private var pull = PullGesture()
     private let defaults: UserDefaults
@@ -924,7 +926,7 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
 
     func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String,
                   completionHandler: @escaping @MainActor @Sendable (URL?) -> Void) {
-        let folder = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+        let folder = downloadsFolder
         let name = (suggestedFilename as NSString).lastPathComponent
         let base = ((name.isEmpty ? "Download" : name) as NSString).deletingPathExtension
         let ext = (name as NSString).pathExtension
@@ -940,7 +942,23 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
     }
     func downloadDidFinish(_ download: WKDownload) {
         guard let destination = downloadDestinations.removeValue(forKey: ObjectIdentifier(download)) else { return }
+        Self.markDownloaded(destination, from: download.originalRequest?.url)
         showNotice("Downloaded \(destination.lastPathComponent).", action: .revealInFinder(destination))
+    }
+    /// WebKit's sandboxed network process quarantines what it saves, but names no source. Record a
+    /// web download by X and, for a web address, where it came from, as a browser does, so Gatekeeper's
+    /// warning names the site. A file that somehow arrives unquarantined is quarantined here.
+    nonisolated static func markDownloaded(_ file: URL, from source: URL?) {
+        var file = file
+        var properties = (try? file.resourceValues(forKeys: [.quarantinePropertiesKey]).quarantineProperties) ?? [:]
+        properties[kLSQuarantineTypeKey as String] = kLSQuarantineTypeWebDownload as String
+        properties[kLSQuarantineAgentNameKey as String] = "X"
+        if let source, ["http", "https"].contains(source.scheme?.lowercased() ?? "") {
+            properties[kLSQuarantineDataURLKey as String] = source
+        }
+        var values = URLResourceValues()
+        values.quarantineProperties = properties
+        try? file.setResourceValues(values)
     }
     func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
         downloadDestinations.removeValue(forKey: ObjectIdentifier(download))
@@ -989,14 +1007,28 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate, WKScript
         if let window = webView.window { panel.beginSheetModal(for: window, completionHandler: handler) }
         else { panel.begin(completionHandler: handler) }
     }
+    /// X's own page speaks as X. An embedded frame, such as a site's player card, is named, as a
+    /// browser names it, so its text can't pass for the app's; one with no site to name is not shown.
+    static func dialog(_ message: String, isMainFrame: Bool, host: String) -> NSAlert? {
+        let alert = NSAlert()
+        if isMainFrame { alert.messageText = message; return alert }
+        guard !host.isEmpty else { return nil }
+        alert.messageText = "An embedded page from \(host) says:"
+        alert.informativeText = message
+        return alert
+    }
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping @MainActor @Sendable () -> Void) {
-        let alert = NSAlert(); alert.messageText = message
+        guard let alert = Self.dialog(message, isMainFrame: frame.isMainFrame, host: frame.securityOrigin.host) else {
+            completionHandler(); return
+        }
         present(alert) { _ in completionHandler() }
     }
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping @MainActor @Sendable (Bool) -> Void) {
-        let alert = NSAlert(); alert.messageText = message
+        guard let alert = Self.dialog(message, isMainFrame: frame.isMainFrame, host: frame.securityOrigin.host) else {
+            completionHandler(false); return
+        }
         alert.addButton(withTitle: "OK"); alert.addButton(withTitle: "Cancel")
         present(alert) { completionHandler($0 == .alertFirstButtonReturn) }
     }

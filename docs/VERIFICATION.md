@@ -1,5 +1,16 @@
 # Verification: X 0.5.2
 
+## Security review fixes (unreleased)
+
+A focused security review of the page bridge, outside links, downloads, links from other apps and the update path found nothing exploitable. It left two items to check, and both now have fixes:
+
+- **Downloads.** A test showed that WebKit's sandboxed network process already quarantines what it saves, so Gatekeeper checks it, but as `LSQuarantineTypeSandboxed` with no source or app named. `BrowserModel.markDownloaded` now records each finished download as a web download by X and, for a web address, its source, as a browser does. A file that arrives without quarantine gets it.
+- **Dialogs from embedded frames.** An alert or confirm from a frame other than X's page, such as a site's player card, now says "An embedded page from *host* says:", so its text can't pass for the app's own. One with no site to name (a sandboxed or `data:` frame) is not shown. X's own dialogs are unchanged.
+
+- All **93 XCTest tests passed with zero failures** (58 desktop/WebKit and 35 core). The release build passed with warnings treated as errors. New tests save a real WebKit download and check its quarantine type and agent, quarantine a file that had none, and check how dialogs are worded and when they're dropped.
+
+Not yet verified by hand: the source address that the Finder and Gatekeeper show for a saved image. It is kept in the quarantine events database, which the test run couldn't read back. Whether X's player-card frames can raise dialogs at all also depends on their sandbox attribute.
+
 ## Sound off by default (0.5.2)
 
 Feed videos could start playing with sound on their own. X remembers an earlier unmute and starts later videos unmuted. WebKit's autoplay policy could not catch that, because it treats the app's own scripted clicks and scrolls (refresh, place keeping, Show N posts) as user gestures. The adapter now mutes any video or audio that plays or unmutes unless the reader has pressed its player. Media X mounts in that player within three seconds of the press counts, and so does audio without a player (such as a Space) that starts within three seconds of any press. A player that loads a new source needs a new press.

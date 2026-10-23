@@ -204,6 +204,46 @@ final class RecoveryTests: XCTestCase {
         }
     }
 
+    func testSavedFilesAreMarkedAsDownloaded() async throws {
+        let folder = try temporaryFolder()
+        try await withModel(configure: { $0.downloadsFolder = folder }) { model, _ in
+            try await waitUntil { !model.loading && model.page.ready }
+            // WebKit downloads data URLs, not file URLs; the saved name is WebKit's suggestion.
+            try XCTUnwrap((model.webView as? XWebView)?.saveImage)(URL(string: "data:audio/wav;base64,UklGRg==")!)
+            try await waitUntil { model.status.hasPrefix("Downloaded ") }
+            let name = try XCTUnwrap(FileManager.default.contentsOfDirectory(atPath: folder.path).first)
+            let saved = folder.appendingPathComponent(name)
+            let quarantine = try XCTUnwrap(saved.resourceValues(forKeys: [.quarantinePropertiesKey]).quarantineProperties,
+                                           "Gatekeeper checks a saved file before it opens")
+            XCTAssertEqual(quarantine[kLSQuarantineTypeKey as String] as? String, kLSQuarantineTypeWebDownload as String)
+            XCTAssertEqual(quarantine[kLSQuarantineAgentNameKey as String] as? String, "X")
+            XCTAssertNil(quarantine[kLSQuarantineDataURLKey as String], "Only web addresses are recorded as the source")
+        }
+    }
+
+    func testAnUnquarantinedDownloadIsQuarantined() throws {
+        let file = try temporaryFolder().appendingPathComponent("photo.jpg")
+        try Data("x".utf8).write(to: file)
+        XCTAssertNil(try file.resourceValues(forKeys: [.quarantinePropertiesKey]).quarantineProperties)
+        let source = URL(string: "https://pbs.twimg.com/media/example?format=jpg&name=orig")!
+        BrowserModel.markDownloaded(file, from: source)
+        let quarantine = try XCTUnwrap(file.resourceValues(forKeys: [.quarantinePropertiesKey]).quarantineProperties)
+        XCTAssertEqual(quarantine[kLSQuarantineTypeKey as String] as? String, kLSQuarantineTypeWebDownload as String)
+        XCTAssertEqual(quarantine[kLSQuarantineAgentNameKey as String] as? String, "X")
+        // The source address goes to the quarantine events database, which a test can't rely on reading.
+    }
+
+    func testEmbeddedFrameDialogsNameTheirSiteOrStaySilent() throws {
+        let own = try XCTUnwrap(BrowserModel.dialog("Leave this page?", isMainFrame: true, host: "x.com"))
+        XCTAssertEqual(own.messageText, "Leave this page?")
+        XCTAssertEqual(own.informativeText, "")
+        let embedded = try XCTUnwrap(BrowserModel.dialog("Your session expired.", isMainFrame: false, host: "cards.example"))
+        XCTAssertEqual(embedded.messageText, "An embedded page from cards.example says:")
+        XCTAssertEqual(embedded.informativeText, "Your session expired.")
+        XCTAssertNil(BrowserModel.dialog("Your session expired.", isMainFrame: false, host: ""),
+                     "A sandboxed or data: frame has no site to name")
+    }
+
     func testFollowingRecentPreferencePersists() async throws {
         try await withModel { model, defaults in
             XCTAssertTrue(model.followingRecent)
