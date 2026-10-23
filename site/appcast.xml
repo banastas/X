@@ -6,13 +6,13 @@
     <description>Updates for X for macOS</description>
     <language>en</language>
     <item>
-      <title>X for macOS 0.5.2</title>
-      <pubDate>Mon, 19 Oct 2026 15:54:34 +0000</pubDate>
-      <sparkle:version>202610190853</sparkle:version>
-      <sparkle:shortVersionString>0.5.2</sparkle:shortVersionString>
+      <title>X for macOS 0.5.3</title>
+      <pubDate>Fri, 23 Oct 2026 04:46:19 +0000</pubDate>
+      <sparkle:version>202610222145</sparkle:version>
+      <sparkle:shortVersionString>0.5.3</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<p>Videos and audio now start muted. Sound plays only after you click or press a video's player, even if X remembers an earlier unmute.</p>]]></description>
-      <enclosure url="https://x.banast.as/downloads/X-0.5.2-202610190853.zip" type="application/octet-stream" sparkle:edSignature="lBAbIC+azm6J/ScFEwuKnVZM9Byn/lYK0xNJ6xUpZfv1ynCJpoB62EB3JRk3zIjeB2DqltQtw23jmjht6V4fBQ==" length="3259562" />
+      <description><![CDATA[<p>Files you save are marked as downloaded from the web by X, with where they came from, so macOS checks them before they open. A message box from a site embedded in a post now names that site, so it can't pass for one of X's own.</p>]]></description>
+      <enclosure url="https://x.banast.as/downloads/X-0.5.3-202610222145.zip" type="application/octet-stream" sparkle:edSignature="qS35YphXct95kf2SOqAeqbrYT164Rjox39l9Xtzv8MfmBPEoMDfCsP+vE5KOWxrS/hfcI2ZJSXd0GiQ6Yej3Ag==" length="3263657" />
     </item>
   </channel>
 </rss>
