@@ -1,6 +1,6 @@
-# Verification: X 0.5.2
+# Verification: X 0.5.3
 
-## Security review fixes (unreleased)
+## Security review fixes (0.5.3)
 
 A focused security review of the page bridge, outside links, downloads, links from other apps and the update path found nothing exploitable. It left two items to check, and both now have fixes:
 
