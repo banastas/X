@@ -11,30 +11,44 @@
      Absolute paths: it can be served from any depth. -->
 <link rel="icon" href="/icon-64.png" type="image/png" sizes="64x64">
 <style>
-:root { --bg: #0a0a0a; --border: #2b2b2b; --bright: #f0f0f0; --dim: #7d7d7d; --text: #c4c4c4; --gutter: 16px; }
+@font-face { font-family: "Silkscreen"; src: url("/fonts/Silkscreen-Regular.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "VT323"; src: url("/fonts/VT323-Regular.ttf") format("truetype"); font-display: swap; }
+:root { --bg: #0a0a0a; --border: #2b2b2b; --bright: #f0f0f0; --dim: #7d7d7d; --text: #c4c4c4; --failure-text: #c98080; --gutter: 16px; }
 * { box-sizing: border-box; }
 html { background: var(--bg); color-scheme: dark; }
-body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); color: var(--text); font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
-a { color: var(--bright); text-decoration: none; border-bottom: 1px solid var(--border); }
-.wrap { max-width: 860px; width: 100%; margin: 0 auto; padding: 0 var(--gutter); }
+body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); color: var(--text); font-family: "VT323", ui-monospace, Menlo, monospace; font-size: 22px; line-height: 1.3; -webkit-font-smoothing: none; }
+body::after { content: ""; position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.018) 0 1px, transparent 1px 3px); }
+a { color: var(--bright); text-decoration: none; border-bottom: 1px dotted var(--dim); }
+a:hover { border-bottom-color: var(--bright); }
+.wrap { max-width: 820px; width: 100%; margin: 0 auto; padding: 0 var(--gutter); }
+.label { font-family: "Silkscreen", ui-monospace, monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
 header { border-bottom: 1px solid var(--border); }
-header .wrap { display: flex; align-items: center; height: 48px; }
-header a { display: flex; align-items: center; gap: 9px; border: 0; font-weight: 650; }
-header img { width: 26px; height: 26px; margin: 0 -2px; }
+header .wrap { display: flex; align-items: center; height: 44px; }
+header a { display: flex; align-items: center; gap: 8px; border: 0; font-family: "Silkscreen", monospace; font-size: 13px; letter-spacing: 0.1em; }
+header img { width: 24px; height: 24px; margin: 0 -2px; }
 main { flex: 1; display: flex; align-items: center; }
-h1 { margin: 0 0 12px; color: var(--bright); font-size: clamp(48px, 12vw, 96px); line-height: 1; }
-footer { border-top: 1px solid var(--border); padding: 24px 0 48px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+h1 { font-family: "Silkscreen", monospace; font-weight: normal; font-size: clamp(56px, 14vw, 112px); line-height: 0.9; letter-spacing: 0.04em; margin: 0 0 22px; color: var(--bright);
+  text-shadow: -0.018em 0 rgba(0, 237, 255, 0.6), 0.018em 0 rgba(255, 43, 204, 0.55); }
+.strip { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); background: #050505; padding: 6px 12px 5px; margin: 0 0 18px; color: var(--failure-text); font-size: 20px; }
+.strip svg { display: block; flex: none; }
+p { margin: 0 0 10px; }
+footer { border-top: 1px solid var(--border); padding: 24px 0 48px; }
 </style>
 </head>
 <body>
-<header><div class="wrap"><a href="/"><img src="/icon-64.png" alt="" width="26" height="26">X for macOS</a></div></header>
+<header>
+  <div class="wrap"><a href="/"><img src="/icon-64.png" alt="" width="24" height="24">X FOR MACOS</a></div>
+</header>
 <main>
   <div class="wrap">
     <h1>404</h1>
-    <p>Nothing is at this address. The page may have moved, or the link has a typo.</p>
+    <div class="strip"><svg width="14" height="14" viewBox="0 0 7 7" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" d="M0 0h1v1h-1zM1 1h1v1h-1zM2 2h1v1h-1zM3 3h1v1h-1zM4 4h1v1h-1zM5 5h1v1h-1zM6 6h1v1h-1zM6 0h1v1h-1zM5 1h1v1h-1zM4 2h1v1h-1zM2 4h1v1h-1zM1 5h1v1h-1zM0 6h1v1h-1z"/></svg><span>NOTHING AT THIS ADDRESS</span></div>
+    <p>The page may have moved, or the link has a typo.</p>
     <p><a href="/">Back to X for macOS</a></p>
   </div>
 </main>
-<footer><div class="wrap">X for macOS · © 2026 banast.as</div></footer>
+<footer>
+  <div class="wrap label">X FOR MACOS · © 2026 banast.as</div>
+</footer>
 </body>
 </html>

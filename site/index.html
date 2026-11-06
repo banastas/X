@@ -10,395 +10,528 @@
 <meta name="theme-color" content="#0a0a0a">
 <link rel="icon" href="icon-64.png" type="image/png" sizes="64x64">
 <style>
-/* The family's greys (Blit, Rune, Cue) with the app icon's gold: highlight, mid and deep tones sampled
-   from the rendered icon, and its near-black mark as ink on gold. */
+@font-face { font-family: "Silkscreen"; src: url("fonts/Silkscreen-Regular.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "VT323"; src: url("fonts/VT323-Regular.ttf") format("truetype"); font-display: swap; }
+
+/* The family's greys (Blit, Rune, Cue, Rill), with the app icon's cyan for what's lit or chosen. The icon's magenta
+   appears only as the heading's ghost. */
 :root {
   --bg: #0a0a0a;
-  --panel: #111111;
-  --raised: #171717;
-  --hairline: #1f1f1f;
+  --panel: #0d0d0d;
+  --bar: #050505;
+  --raised: #121212;
+  --hairline: #1a1a1a;
+  --off: #262626;
   --border: #2b2b2b;
-  --dim: #8a8a8a;
-  --text: #c8c8c8;
-  --bright: #f4f4f4;
-  --gold-hi: #fdec9f;
-  --gold: #e2b552;
-  --gold-deep: #c09334;
-  --ink: #141414;
-  --gold-fill: linear-gradient(135deg, var(--gold-hi) 0%, var(--gold) 45%, var(--gold-deep) 100%);
+  --dim: #7d7d7d;
+  --secondary: #8e8e8e;
+  --soft: #b0b0b0;
+  --bright: #f0f0f0;
+  --accent: #00edff;
+  --ghost-cyan: rgba(0, 237, 255, 0.6);
+  --ghost-magenta: rgba(255, 43, 204, 0.55);
+  --label: "Silkscreen", ui-monospace, Menlo, monospace;
+  --term: "VT323", ui-monospace, Menlo, monospace;
+  --system: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;   /* inside the drawn window */
   --gutter: 16px;
-  --radius: 14px;
 }
+
 * { box-sizing: border-box; }
 html { background: var(--bg); color-scheme: dark; }
 body {
-  margin: 0; background: var(--bg); color: var(--text);
-  font: 17px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
-  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  margin: 0;
+  background: var(--bg);
+  color: var(--bright);
+  font-family: var(--term);
+  font-size: 22px;
+  line-height: 1.25;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  overflow-x: hidden;
 }
-a { color: var(--bright); text-decoration: none; }
-.wrap { max-width: 1080px; margin: 0 auto; padding: 0 var(--gutter); }
-.label { font-size: 12px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--dim); }
-kbd {
-  display: inline-block; min-width: 26px; padding: 2px 7px; border: 1px solid var(--border); border-bottom-width: 2px;
-  border-radius: 6px; background: var(--raised); color: var(--bright); text-align: center;
-  font: 500 13px/1.4 -apple-system, BlinkMacSystemFont, sans-serif;
+/* Faint scanlines over everything, as on the family's other pages. */
+body::after {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.018) 0 1px, transparent 1px 3px);
+  z-index: 50;
 }
+a { color: var(--bright); text-decoration: none; border-bottom: 1px dotted var(--dim); }
+a:hover { border-bottom-color: var(--bright); }
+::selection { background: var(--accent); color: #000; }
+kbd { font-family: inherit; }
 
-/* ---------- header ---------- */
-header { position: sticky; top: 0; z-index: 5; background: rgba(10,10,10,0.78); backdrop-filter: saturate(160%) blur(14px); -webkit-backdrop-filter: saturate(160%) blur(14px); border-bottom: 1px solid var(--hairline); }
-header .wrap { display: flex; align-items: center; gap: 10px; height: 52px; }
-.brand { display: flex; align-items: center; gap: 9px; color: var(--bright); font-weight: 650; letter-spacing: 0.01em; }
-.brand img { width: 26px; height: 26px; margin: 0 -2px; }
-.pill { margin-left: 4px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
-header .spacer { flex: 1; }
-.btn.btn-small { padding: 6px 14px; border-radius: 999px; font-size: 14px; box-shadow: 0 1px 0 rgba(255,255,255,0.35) inset; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 var(--gutter); }
+.label { font-family: var(--label); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+.dim { color: var(--dim); }
+.glyph { display: inline-block; vertical-align: -1px; fill: currentColor; flex: none; shape-rendering: crispEdges; }
 
-/* ---------- buttons ---------- */
-.btn { display: inline-flex; align-items: center; gap: 8px; border-radius: 12px; padding: 13px 22px; font-weight: 650; font-size: 16px; color: var(--ink); background: var(--gold-fill); box-shadow: 0 1px 0 rgba(255,255,255,0.35) inset, 0 8px 24px -10px rgba(226,181,82,0.6); transition: filter .15s, transform .15s; }
-.btn:hover { filter: brightness(1.06); }
-.btn:active { transform: translateY(1px); }
-.btn:focus-visible, .btn-quiet:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 3px; }
-.btn svg { width: 18px; height: 18px; }
-.btn.is-soon { background: #242424; color: var(--dim); box-shadow: none; pointer-events: none; }
-.btn-quiet { display: inline-flex; align-items: center; gap: 6px; padding: 13px 6px; color: var(--text); font-weight: 600; }
-.btn-quiet:hover { color: var(--bright); }
+/* ---------- top bar ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 40;
+  background: rgba(10,10,10,0.92);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .wrap { display: flex; align-items: center; gap: 14px; height: 44px; }
+.brand { display: flex; align-items: center; gap: 8px; border: 0; font-family: var(--label); font-size: 13px; letter-spacing: 0.1em; white-space: nowrap; }
+.brand img { width: 24px; height: 24px; margin: 0 -2px; }
+.topbar nav { margin-left: auto; display: flex; gap: 18px; }
+.topbar nav a { border: 0; color: var(--dim); }
+.topbar nav a:hover { color: var(--bright); }
+.topbar .btn { margin-left: 4px; padding: 6px 10px 5px; font-size: 11px; }
 
 /* ---------- hero ---------- */
-.hero { position: relative; overflow: hidden; padding: 72px 0 88px; }
-.hero::before { content: ""; position: absolute; inset: -20% -10% auto; height: 760px; pointer-events: none;
-  background: radial-gradient(520px 380px at 18% 22%, rgba(226,181,82,0.16), transparent 70%),
-              radial-gradient(520px 420px at 82% 40%, rgba(253,236,159,0.06), transparent 70%); }
-.hero-grid { position: relative; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center; }
-.app-icon { display: block; width: 116px; height: 116px; margin: 0 0 22px -12px; filter: drop-shadow(0 18px 30px rgba(226,181,82,0.28)) drop-shadow(0 6px 10px rgba(0,0,0,0.5)); }
-.eyebrow { margin: 0 0 12px; color: var(--gold); }
-h1 { margin: 0 0 18px; color: var(--bright); font-size: clamp(40px, 6vw, 64px); line-height: 1.02; font-weight: 750; letter-spacing: -0.035em; }
-h1 .gold { background: var(--gold-fill); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.sub { max-width: 520px; margin: 0 0 30px; font-size: 19px; color: var(--text); }
-.cta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
-.meta { margin: 14px 0 0; font-size: 14px; color: var(--dim); }
-#whatsnew { margin: 6px 0 0; max-width: 520px; font-size: 14px; color: var(--dim); }
-#whatsnew strong { color: var(--text); font-weight: 600; }
+.hero { padding: 72px 0 40px; }
+.hero-grid { display: grid; grid-template-columns: auto 1fr; gap: 40px; align-items: center; }
+.icon-tile {
+  width: 168px; height: 168px; border-radius: 38px;
+  background: #0b0b0b;
+  box-shadow: inset 0 0 0 1px var(--border), 0 20px 60px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+/* icon.png is the full macOS icon, margin included: scaled so its squircle fills the tile. */
+.icon-tile img { display: block; width: 100%; height: 100%; transform: scale(1.243); }
+h1 {
+  font-family: var(--label); font-weight: normal;
+  font-size: clamp(56px, 11vw, 112px); line-height: 0.9; letter-spacing: 0.04em;
+  margin: 0 0 18px;
+  /* The icon's chromatic split: cyan a hair to the left, magenta to the right. */
+  text-shadow: -0.018em 0 var(--ghost-cyan), 0.018em 0 var(--ghost-magenta);
+}
+.tagline { font-size: clamp(26px, 4vw, 36px); margin: 0 0 12px; max-width: 28ch; }
+.tagline .cursor { animation: blink 1.1s steps(1) infinite; color: var(--accent); }
+@keyframes blink { 50% { opacity: 0; } }
+.sub { color: var(--dim); max-width: 56ch; margin: 0 0 14px; }
+section.block .sub { max-width: 62ch; margin-bottom: 28px; }
+.indie { display: flex; gap: 10px; align-items: baseline; color: var(--soft); max-width: 56ch; margin: 0 0 18px; }
+.indie .glyph { color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; }
+.chips span { border: 1px solid var(--border); color: var(--dim); padding: 4px 7px 3px; font-size: 10px; }
+.cta { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 22px; }
 
-/* ---------- the window, drawn ---------- */
-.stage { position: relative; display: flex; justify-content: center; }
-.window { position: relative; width: min(352px, 100%); border-radius: 13px; overflow: hidden; background: #151515;
-  border: 1px solid #303030; box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 50px 90px -30px rgba(0,0,0,0.9), 0 30px 60px -40px rgba(226,181,82,0.35);
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-.titlebar { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 12px; background: #1c1c1c; border-bottom: 1px solid #262626; }
-.lights { display: flex; gap: 7px; margin-right: 8px; }
-.lights i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; }
-.lights i:nth-child(2) { background: #febc2e; }
-.lights i:nth-child(3) { background: #28c840; }
-.tool { width: 22px; height: 22px; color: #9a9a9a; }
-.tool.off { color: #4d4d4d; }
-.tool.on { color: var(--gold); }
-.titlebar .grow { flex: 1; }
+.btn { font-family: var(--label); font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid var(--bright); color: var(--bright); padding: 10px 16px 9px; display: inline-block; white-space: nowrap; }
+.btn:hover { background: var(--bright); color: var(--bg); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* Download is lit in the accent. Off (no release yet) it's a dim outline that does nothing. */
+.btn-accent { background: var(--accent); border-color: var(--accent); color: #000; }
+.btn-accent:hover { background: #80f6ff; border-color: #80f6ff; color: #000; }
+.btn.is-soon { background: none; border-color: var(--border); color: var(--dim); cursor: default; pointer-events: none; }
+
+/* ---------- the drawn window ---------- */
+.demo { padding: 8px 0 56px; }
+.caption { display: flex; justify-content: space-between; gap: 12px; margin: 0 2px 8px; }
+.note { margin: 10px 2px 0; }
+.demo-grid { display: grid; grid-template-columns: minmax(0, 380px) 1fr; gap: 28px 48px; align-items: center; }
+.xwin {
+  border: 1px solid #3a3a3c; border-radius: 12px; overflow: hidden;
+  background: var(--bg); box-shadow: 0 16px 50px rgba(0,0,0,0.5);
+  font-family: var(--system); -webkit-font-smoothing: antialiased;
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+.xbar { display: flex; align-items: center; gap: 6px; height: 46px; padding: 0 10px 0 14px; background: var(--bar); border-bottom: 1px solid var(--hairline); }
+.lights { display: flex; gap: 7px; margin-right: 6px; }
+.lights i { width: 11px; height: 11px; border-radius: 50%; background: #3a3a3c; display: block; }
+.grow { flex: 1; }
 /* macOS 27 groups toolbar items into capsules; the middle one is the feed menu. */
-.tgroup { display: flex; align-items: center; gap: 1px; height: 26px; padding: 0 5px; border-radius: 13px; background: #262626; border: 1px solid #303030; }
-.tgroup .tool { width: 20px; height: 20px; }
-.feedmenu { gap: 4px; padding: 0 10px; color: #c4c4c4; font-size: 12px; font-weight: 650; white-space: nowrap; }
-.feedmenu svg { width: 9px; height: 9px; color: #8c8c8c; }
-/* The line keeping your place draws after a refresh, above the post you were reading. */
-.here { position: relative; height: 0; border-top: 2px solid var(--gold); }
-.here span { position: absolute; right: 12px; top: -10px; padding: 1px 7px; border-radius: 9px; background: var(--gold); color: var(--ink); font-size: 10.5px; font-weight: 600; line-height: 16px; }
-.tabs { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #262626; }
-.tabs span { position: relative; padding: 13px 0 12px; text-align: center; font-size: 14px; font-weight: 700; color: #6f6f6f; }
+.tg { display: flex; align-items: center; gap: 1px; height: 26px; padding: 0 4px; border-radius: 13px; background: var(--raised); border: 1px solid var(--border); flex: none; }
+.tool { width: 22px; height: 22px; display: grid; place-items: center; color: #cfcfcf; }
+.tool.off { color: #4a4a4a; }
+.tool.on { color: var(--accent); }
+.feedmenu { gap: 6px; padding: 0 10px; color: #d1d1d1; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.feedmenu .glyph { color: var(--dim); }
+.tabs { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--hairline); background: var(--panel); }
+.tabs span { position: relative; padding: 12px 0 11px; text-align: center; font-size: 13.5px; font-weight: 700; color: #6e6e6e; }
 .tabs span.sel { color: var(--bright); }
-.tabs span.sel::after { content: ""; position: absolute; left: 50%; bottom: 0; width: 64px; height: 3px; margin-left: -32px; border-radius: 3px; background: var(--gold); }
-.viewport { position: relative; height: 430px; overflow: hidden; }
+.tabs span.sel::after { content: ""; position: absolute; left: 50%; bottom: -1px; width: 60px; height: 2px; margin-left: -30px; background: var(--accent); }
+.viewport { position: relative; height: 400px; overflow: hidden; background: var(--panel); }
 .feed { transition: transform .45s cubic-bezier(.2,.8,.2,1), opacity .3s; }
-.post { display: grid; grid-template-columns: 34px 1fr; gap: 10px; padding: 14px 14px 13px; border-bottom: 1px solid #222; }
-.avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(140deg, #3a3a3a, #262626); }
-.post:nth-child(2) .avatar { background: linear-gradient(140deg, #5a4a26, #2c2618); }
-.post:nth-child(4) .avatar { background: linear-gradient(140deg, #2f3a46, #1e242b); }
-.lines i { display: block; height: 8px; margin: 3px 0 8px; border-radius: 4px; background: #2a2a2a; }
-.lines i:first-child { width: 42%; height: 9px; background: #3a3a3a; }
+/* Placeholder posts: grey bars, no names and no text. */
+.post { display: grid; grid-template-columns: 32px 1fr; gap: 10px; padding: 13px 14px 12px; border-bottom: 1px solid var(--hairline); }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: #262626; }
+.post:nth-child(2) .avatar { background: #303030; }
+.post:nth-child(4) .avatar { background: #1f1f1f; box-shadow: inset 0 0 0 1px #333; }
+.lines i { display: block; height: 7px; margin: 3px 0 8px; background: #1f1f1f; }
+.lines i:first-child { width: 40%; height: 8px; background: #333; }
 .lines i.w90 { width: 92%; } .lines i.w75 { width: 76%; } .lines i.w60 { width: 58%; }
-.media { height: 112px; margin: 4px 0 6px; border-radius: 12px; border: 1px solid #262626;
-  background: linear-gradient(160deg, #2d2618 0%, #1b1b1b 55%, #222 100%); }
-.capsule { position: absolute; top: 10px; left: 50%; z-index: 2; display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
-  background: rgba(40,40,40,0.92); border: 1px solid #3a3a3a; color: var(--bright); font-size: 11.5px; font-weight: 500;
-  transform: translate(-50%, -48px); opacity: 0; transition: transform .35s cubic-bezier(.2,.8,.2,1), opacity .25s; white-space: nowrap; }
-.capsule svg { width: 12px; height: 12px; }
-.window.pulling .capsule, .window.loading .capsule { transform: translate(-50%, 0); opacity: 1; }
-.window.pulling .feed { transform: translateY(26px); }
-.window.loading .feed { opacity: 0.35; }
-.window.loading .capsule svg { animation: spin .8s linear infinite; }
+.media { height: 104px; margin: 4px 0 6px; border: 1px solid var(--off);
+  background: repeating-linear-gradient(135deg, #151515 0 6px, #121212 6px 12px); }
+/* The line keeping your place draws after a refresh, above the post you were reading. */
+.here { position: relative; height: 0; border-top: 2px solid var(--accent); }
+.here span { position: absolute; right: 12px; top: -9px; padding: 3px 6px 2px; background: var(--accent); color: #000; font-family: var(--label); font-size: 8px; letter-spacing: 0.06em; line-height: 11px; -webkit-font-smoothing: none; }
+.capsule { position: absolute; top: 10px; left: 50%; z-index: 2; display: flex; align-items: center; gap: 7px; padding: 4px 10px 3px;
+  background: rgba(18,18,18,0.96); border: 1px solid var(--border); color: var(--bright);
+  font-family: var(--term); font-size: 17px; text-transform: uppercase; -webkit-font-smoothing: none; white-space: nowrap;
+  transform: translate(-50%, -48px); opacity: 0; transition: transform .35s cubic-bezier(.2,.8,.2,1), opacity .25s; }
+.capsule .glyph { color: var(--accent); }
+.xwin.pulling .capsule, .xwin.loading .capsule { transform: translate(-50%, 0); opacity: 1; }
+.xwin.pulling .feed { transform: translateY(26px); }
+.xwin.loading .feed { opacity: 0.35; }
+.xwin.loading .capsule .glyph { animation: spin .8s steps(8) infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.statusbar { display: flex; align-items: center; height: 24px; padding: 0 10px; border-top: 1px solid #262626; background: #181818; color: #8c8c8c; font-size: 11px; font-variant-numeric: tabular-nums; }
-.note-chip { position: absolute; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: rgba(23,23,23,0.92);
-  border: 1px solid var(--border); color: var(--text); font-size: 13px; font-weight: 500; box-shadow: 0 14px 30px -14px rgba(0,0,0,0.8); white-space: nowrap; }
-.note-chip b { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 4px rgba(226,181,82,0.15); }
-.note-chip.a { top: 306px; left: calc(50% + 150px); }
-.note-chip.b { top: 46px; left: calc(50% + 150px); }
-.note-chip.c { bottom: 18px; right: calc(50% + 140px); }
+.xstatus {
+  display: flex; align-items: center; gap: 10px; min-height: 30px; padding: 0 12px;
+  background: var(--bar); border-top: 1px solid var(--hairline);
+  font-family: var(--term); font-size: 16px; color: var(--soft); text-transform: uppercase; white-space: nowrap; overflow: hidden; -webkit-font-smoothing: none;
+}
+.xstatus span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.cells { display: flex; gap: 2px; flex: none; }
+.cells i { width: 4px; height: 10px; background: var(--off); display: block; }
+.cells i.lit { background: var(--bright); }
+.cells i.live { background: var(--accent); }
+
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 22px; }
+.legend li { border-left: 1px solid var(--border); padding: 2px 0 2px 16px; }
+.legend h3 { font-family: var(--label); font-weight: normal; font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase; margin: 0 0 6px; display: flex; gap: 10px; align-items: baseline; }
+.legend h3 .n { color: var(--dim); font-size: 11px; }
+.legend p { margin: 0; color: #c4c4c4; max-width: 46ch; }
 
 /* ---------- sections ---------- */
-section { padding: 72px 0; border-top: 1px solid var(--hairline); }
-.section-head { max-width: 640px; margin: 0 0 32px; }
-h2 { margin: 0 0 8px; color: var(--bright); font-size: clamp(26px, 3.4vw, 34px); line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
-.section-head p { margin: 0; color: var(--dim); }
-.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-.card { padding: 22px 20px 20px; border: 1px solid var(--hairline); border-radius: var(--radius); background: linear-gradient(180deg, #131313, #0f0f0f); }
-.card svg { width: 26px; height: 26px; margin-bottom: 14px; color: var(--gold); }
-.card h3 { margin: 0 0 6px; color: var(--bright); font-size: 16.5px; font-weight: 650; }
-.card p { margin: 0; font-size: 15px; color: var(--text); }
-.keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 28px; }
-.key { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--hairline); font-size: 15px; }
-.key span:last-child { display: flex; gap: 4px; flex: none; }
-.details { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-.detail { padding: 18px 20px; border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--panel); }
-.detail .label { display: block; margin-bottom: 6px; }
-.detail p { margin: 0; font-size: 15px; }
-a.inline { color: var(--bright); border-bottom: 1px solid var(--border); }
-a.inline:hover { border-bottom-color: var(--gold); }
-.disclaimer { display: flex; gap: 14px; align-items: flex-start; margin-top: 14px; padding: 18px 20px; border: 1px solid #3a3122; border-radius: var(--radius); background: #14110b; font-size: 15px; }
-.disclaimer svg { flex: none; width: 20px; height: 20px; margin-top: 2px; color: var(--gold); }
-.disclaimer p { margin: 0; }
-.closing { text-align: center; }
-.closing .app-icon { width: 84px; height: 84px; margin: 0 auto 18px; }
-.closing h2 { margin-bottom: 22px; }
-.closing .cta { justify-content: center; }
-
-footer { padding: 28px 0 56px; border-top: 1px solid var(--hairline); }
-footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 24px; font-size: 13px; color: var(--dim); }
-footer a { color: var(--text); border-bottom: 1px solid var(--border); }
-footer a:hover { color: var(--bright); border-bottom-color: var(--bright); }
-footer nav { display: flex; gap: 18px; }
-
-@media (max-width: 1060px) { .note-chip { display: none; } }
-@media (max-width: 900px) {
-  .hero { padding: 48px 0 64px; }
-  .hero-grid { grid-template-columns: 1fr; gap: 44px; }
-  .cards, .keys { grid-template-columns: repeat(2, 1fr); }
+section.block { padding: 72px 0; border-top: 1px solid var(--border); }
+.section-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 26px; }
+.section-head .label { color: var(--dim); }
+h2 { font-family: var(--label); font-weight: normal; font-size: clamp(22px, 3.4vw, 30px); letter-spacing: 0.04em; margin: 0; text-transform: uppercase; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.card { border: 1px solid var(--border); padding: 16px 16px 14px; position: relative; background: var(--panel); }
+.card.wide { grid-column: 1 / -1; }
+/* Pixel marching ants, as on every drop target in Blit. */
+.card::before {
+  content: ""; position: absolute; inset: -1px; pointer-events: none; opacity: 0;
+  background:
+    linear-gradient(90deg, var(--bright) 50%, transparent 50%) top / 8px 2px repeat-x,
+    linear-gradient(90deg, var(--bright) 50%, transparent 50%) bottom / 8px 2px repeat-x,
+    linear-gradient(0deg, var(--bright) 50%, transparent 50%) left / 2px 8px repeat-y,
+    linear-gradient(0deg, var(--bright) 50%, transparent 50%) right / 2px 8px repeat-y;
+  animation: ants 0.6s steps(4) infinite;
 }
-@media (max-width: 600px) {
-  .cards, .keys, .details { grid-template-columns: 1fr; }
-  .app-icon { width: 96px; height: 96px; margin-left: -10px; }
-  .sub { font-size: 17px; }
-  section { padding: 56px 0; }
-  header .btn-small { display: none; }
+.card:hover::before { opacity: 1; }
+@keyframes ants { to { background-position: 8px 0, -8px 100%, 0 -8px, 100% 8px; } }
+.card h3 { font-family: var(--label); font-weight: normal; font-size: 13px; letter-spacing: 0.05em; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; text-transform: uppercase; }
+.card h3 .glyph { color: var(--accent); }
+.card p { margin: 0 0 8px; color: #c4c4c4; }
+.card p:last-child { margin-bottom: 0; }
+.k { color: var(--bright); }
+
+/* Shortcuts: the keys as the menus show them. */
+.keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 28px; }
+.key { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0 7px; border-top: 1px solid var(--border); color: #c4c4c4; }
+.key kbd { display: flex; gap: 3px; flex: none; color: var(--bright); }
+.key kbd b { font-weight: normal; min-width: 22px; padding: 0 5px; border: 1px solid var(--border); background: var(--raised); text-align: center; line-height: 1.1; }
+
+.spec { width: 100%; border-collapse: collapse; font-size: 20px; }
+.spec td { border-top: 1px solid var(--border); padding: 8px 10px 7px 0; vertical-align: top; text-align: left; }
+.spec td:first-child { font-family: var(--label); font-size: 11px; color: var(--dim); width: 34%; padding-top: 12px; text-transform: uppercase; }
+.disclaimer { display: flex; gap: 12px; align-items: baseline; margin-top: 22px; padding: 14px 16px; border: 1px solid var(--border); background: var(--panel); color: #c4c4c4; }
+.disclaimer .glyph { color: var(--accent); }
+.disclaimer p { margin: 0; }
+
+.get { border: 1px solid var(--border); background: var(--panel); display: grid; grid-template-columns: auto 1fr; gap: 20px 40px; padding: 22px 24px; align-items: center; }
+.get-v { font-size: 96px; line-height: 0.85; margin: 4px 0 6px; }
+.get-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; color: #c4c4c4; }
+.get-list li { display: flex; gap: 10px; align-items: baseline; }
+.get-list .glyph { color: var(--accent); }
+.get-cta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; border-top: 1px dashed var(--off); padding-top: 16px; }
+.whatsnew { grid-column: 1 / -1; color: #c4c4c4; margin: 0; }
+.whatsnew[hidden] { display: none; }
+.whatsnew b { font-weight: normal; color: var(--bright); }
+
+footer { border-top: 1px solid var(--border); padding: 28px 0 48px; color: var(--dim); }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: center; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 18px; }
+.footer-links a { border: 0; color: var(--dim); }
+.footer-links a:hover { color: var(--bright); }
+
+/* ---------- small screens ---------- */
+@media (max-width: 960px) {
+  .keys { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 820px) {
+  .hero { padding-top: 44px; }
+  .hero-grid { grid-template-columns: 1fr; gap: 24px; }
+  .icon-tile { width: 112px; height: 112px; border-radius: 26px; }
+  .topbar nav { display: none; }
+  .topbar .btn { margin-left: auto; }
+  .grid, .keys { grid-template-columns: 1fr; }
+  .get { grid-template-columns: 1fr; }
+  .demo-grid { grid-template-columns: minmax(0, 380px); justify-content: center; }
+}
+@media (max-width: 480px) {
+  body { font-size: 20px; }
+  .get-v { font-size: 80px; }
+  .viewport { height: 360px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .feed, .capsule, .btn { transition: none; }
-  .window.pulling .feed { transform: none; }
-  .window.loading .capsule svg { animation: none; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .xwin.pulling .feed { transform: none; }
 }
 </style>
 </head>
 <body>
-<header>
+<header class="topbar">
   <div class="wrap">
-    <a class="brand" href="#top"><img src="icon-64.png" alt="" width="26" height="26">X for macOS</a>
-    <span class="pill">Unofficial</span>
-    <span class="spacer"></span>
-    <a class="btn btn-small is-soon" id="download-top" href="#" aria-disabled="true">Download</a>
+    <a class="brand" href="#top"><img src="icon-64.png" alt="" width="24" height="24">X FOR MACOS</a>
+    <nav class="label" aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#keys">Keys</a>
+      <a href="#spec">Spec</a>
+      <a href="#download">Download</a>
+    </nav>
+    <a class="btn btn-accent is-soon" id="download-top" href="#download" aria-disabled="true">Download</a>
   </div>
 </header>
 
 <main id="top">
-  <div class="hero">
+  <section class="hero">
     <div class="wrap hero-grid">
+      <div class="icon-tile"><img src="icon.png" width="168" height="168" alt="X for macOS app icon"></div>
       <div>
-        <img class="app-icon" src="icon.png" alt="X for macOS app icon" width="116" height="116">
-        <p class="eyebrow label">A Mac app · Free</p>
-        <h1>Your X feeds,<br> <span class="gold">in their own window.</span></h1>
-        <p class="sub">Keeps For you and Following open in a window of their own. The feed refreshes every minute, waits while you read, write, or watch, and keeps your place.</p>
+        <h1>X</h1>
+        <p class="tagline">YOUR X FEEDS,<br> IN THEIR OWN WINDOW<span class="cursor" aria-hidden="true">_</span></p>
+        <p class="sub">A Mac app that keeps For you and Following open in a window of their own. The feed refreshes every minute, waits while you read, write, or watch, and keeps your place.</p>
+        <p class="indie"><span data-g="info"></span><span>Unofficial: an independent app, not made, endorsed, or supported by X Corp.</span></p>
+        <div class="chips label"><span>macOS 27</span><span>Apple silicon</span><span>Unofficial</span><span>Free</span></div>
         <div class="cta">
-          <a class="btn is-soon" id="download" href="#" aria-disabled="true">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10m-4-4 4 4 4-4M4 16h12"/></svg>
-            Download
-          </a>
-          <a class="btn-quiet" href="#features">What it does
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 2v10m-4-4 4 4 4-4"/></svg>
-          </a>
+          <a class="btn btn-accent is-soon" id="download" href="#download" aria-disabled="true">Download</a>
+          <span class="label dim" id="download-note">No release yet · macOS 27 or later</span>
         </div>
-        <p class="meta" id="download-note">No release yet · macOS 27 or later</p>
-        <p id="whatsnew" hidden></p>
       </div>
+    </div>
+  </section>
 
-      <div class="stage">
-        <div class="window" id="window" role="img" aria-label="Drawing of the app's window: the Following feed, a You were here line where you left off, and a refresh countdown in the status strip">
-          <div class="titlebar" aria-hidden="true">
+  <!-- The app's window drawn in HTML and CSS, as of 0.5.0: the toolbar's capsule groups with the feed menu in the
+       middle, the For you and Following tabs, placeholder posts with no real content, a You were here line, and the
+       status strip's countdown. No X branding and no real posts. Update it when the toolbar or status strip changes. -->
+  <section class="demo" aria-label="The app's window, drawn">
+    <div class="wrap">
+      <div class="caption label dim"><span>X for macOS · drawn</span><span id="clock">--:--:--</span></div>
+      <div class="demo-grid">
+        <div class="xwin" id="window" role="img" aria-label="Drawing of the app's window: the Following feed, a You were here line where you left off, and a refresh countdown in the status strip">
+          <div class="xbar" aria-hidden="true">
             <span class="lights"><i></i><i></i><i></i></span>
-            <span class="tgroup">
-              <svg class="tool" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 6 8.5 11l5 5"/></svg>
-              <svg class="tool off" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8.5 6 5 5-5 5"/></svg>
-              <svg class="tool" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M4.5 10.5 11 5l6.5 5.5V17h-4.2v-4h-4.6v4H4.5z"/></svg>
+            <span class="tg">
+              <span class="tool" data-g="back" data-s="2"></span>
+              <span class="tool off" data-g="forward" data-s="2"></span>
+              <span class="tool" data-g="home" data-s="2"></span>
             </span>
             <span class="grow"></span>
-            <span class="tgroup feedmenu">Following
-              <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m2.5 3.8 2.5 2.5 2.5-2.5"/></svg>
-            </span>
+            <span class="tg feedmenu">Following<span data-g="caret" data-s="1"></span></span>
             <span class="grow"></span>
-            <span class="tgroup">
-              <svg class="tool" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 8.2A6 6 0 1 0 17 12"/><path d="M17 4.5v4h-4"/></svg>
-              <svg class="tool on" viewBox="0 0 22 22" fill="currentColor"><circle cx="11" cy="11" r="7.5"/><path d="M11 7v4.2l2.6 1.6" stroke="#151515" stroke-width="1.7" stroke-linecap="round" fill="none"/></svg>
+            <span class="tg">
+              <span class="tool" data-g="refresh" data-s="2"></span>
+              <span class="tool on" data-g="auto" data-s="2"></span>
             </span>
           </div>
           <div class="tabs" aria-hidden="true"><span>For you</span><span class="sel">Following</span></div>
           <div class="viewport" aria-hidden="true">
-            <div class="capsule" id="capsule">
-              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 4.4A4 4 0 1 0 10 6.6"/><path d="M10 1.8v2.8H7.2"/></svg>
-              <span id="capsule-text">Release to refresh</span>
-            </div>
+            <div class="capsule"><span data-g="refresh" data-s="1.5"></span><span id="capsule-text">Release to refresh</span></div>
             <div class="feed">
               <div class="post"><span class="avatar"></span><div class="lines"><i></i><i class="w90"></i><i class="w60"></i></div></div>
               <div class="post"><span class="avatar"></span><div class="lines"><i></i><i class="w90"></i><i class="w75"></i><div class="media"></div></div></div>
-              <div class="here"><span>You were here</span></div>
+              <div class="here"><span>YOU WERE HERE</span></div>
               <div class="post"><span class="avatar"></span><div class="lines"><i></i><i class="w75"></i></div></div>
               <div class="post"><span class="avatar"></span><div class="lines"><i></i><i class="w90"></i><i class="w60"></i></div></div>
               <div class="post"><span class="avatar"></span><div class="lines"><i></i><i class="w90"></i></div></div>
             </div>
           </div>
-          <div class="statusbar" aria-hidden="true"><span id="status">Next refresh in 9s · Refreshed 9:41 AM</span></div>
+          <div class="xstatus" aria-hidden="true"><span class="cells" id="cells"></span><span id="status">Next refresh in 9s · Refreshed 9:41 AM</span></div>
         </div>
-        <span class="note-chip a" aria-hidden="true"><b></b>Keeps your place</span>
-        <span class="note-chip b" aria-hidden="true"><b></b>Switch feeds, or go Home</span>
-        <span class="note-chip c" aria-hidden="true"><b></b>Counts down, then refreshes</span>
+        <ol class="legend">
+          <li><h3><span class="n">A</span>Switch feeds, or go Home</h3><p>Back, Forward and Home on the left, the feed menu in the middle, refresh on the right.</p></li>
+          <li><h3><span class="n">B</span>Keeps your place</h3><p>After a refresh, the post you were reading comes back, marked "You were here".</p></li>
+          <li><h3><span class="n">C</span>Counts down, then refreshes</h3><p>The status strip counts down to the next refresh. Click the feed to pull it.</p></li>
+        </ol>
       </div>
+      <p class="note label dim">Drawn, with placeholder posts. Click or tap the feed to pull.</p>
     </div>
-  </div>
+  </section>
 
-  <section id="features" aria-labelledby="features-title">
+  <section class="block" id="features">
     <div class="wrap">
-      <div class="section-head">
-        <h2 id="features-title">Made for reading the feed</h2>
-        <p>It shows the x.com website you already use, inside a Mac window that refreshes the feed every minute, except while you're scrolled down, writing a post, or watching a video.</p>
-      </div>
-      <div class="cards">
+      <div class="section-head"><span class="label">01</span><h2>Made for reading the feed</h2></div>
+      <p class="sub">It shows the x.com website you already use, inside a Mac window that refreshes the feed every minute, except while you're scrolled down, writing a post, or watching a video.</p>
+      <div class="grid">
         <div class="card">
-          <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13" cy="14" r="9"/><path d="M13 9v5l3 2M10 2.5h6"/></svg>
-          <h3>Refreshes, then waits</h3>
+          <h3><span data-g="clock"></span> Refreshes, then waits</h3>
           <p>Refreshes Home every minute, or every 2, 5 or 10. It holds off while you're scrolled down, typing a post, watching a video, or using a menu, and uses X's own "Show posts" button when there is one.</p>
         </div>
         <div class="card">
-          <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h16M5 13h11M5 19h6"/><path d="m18 17 2.5 2.5L24 15"/></svg>
-          <h3>Following shows Recent</h3>
+          <h3><span data-g="recent"></span> Following shows Recent</h3>
           <p>Picks Recent each time Following opens, so you see the latest posts first. You can turn this off in the View menu.</p>
         </div>
         <div class="card">
-          <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h12v20l-6-4-6 4z"/></svg>
-          <h3>Keeps your place</h3>
+          <h3><span data-g="place"></span> Keeps your place</h3>
           <p>If a refresh happens while you're scrolled down, the post you were reading comes back, marked "You were here".</p>
         </div>
         <div class="card">
-          <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 4v14m-5-5 5 5 5-5M6 22h14"/></svg>
-          <h3>Pull to refresh</h3>
+          <h3><span data-g="pull"></span> Pull to refresh</h3>
           <p>At the top of the feed, pull down with a trackpad or keep scrolling a mouse wheel to refresh right away.</p>
         </div>
         <div class="card">
-          <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="20" height="16" rx="3"/><path d="M3 10h20M7 7.5h.01M10 7.5h.01"/></svg>
-          <h3>Standard Mac controls</h3>
+          <h3><span data-g="window"></span> Standard Mac controls</h3>
           <p>Settings, Back, Forward, Home, Stop, find on page, text size, keep on top, open at login, and a Dock badge and notifications for unread counts.</p>
         </div>
         <div class="card">
-          <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16.5 4.5 21 9 9.5 20.5H5V16z"/><path d="m14 7 4.5 4.5"/></svg>
-          <h3>Protects your drafts</h3>
+          <h3><span data-g="draft"></span> Protects your drafts</h3>
           <p>Asks before a reload, a link, Back, or Quit would discard a post you haven't sent.</p>
         </div>
         <div class="card">
-          <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6h16M5 13h16M5 20h10"/><circle cx="20" cy="20" r="2"/></svg>
-          <h3>Pinned lists too</h3>
+          <h3><span data-g="lists"></span> Pinned lists too</h3>
           <p>A list or community pinned on Home refreshes the same way as For you and Following.</p>
         </div>
         <div class="card">
-          <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 15 15 11M9 12l-2 2a3.5 3.5 0 0 0 5 5l2-2M17 14l2-2a3.5 3.5 0 0 0-5-5l-2 2"/></svg>
-          <h3>Opens your X links</h3>
-          <p>Drop an x.com link on the Dock icon, or use Services › Open in X for macOS from another app.</p>
+          <h3><span data-g="open"></span> Opens your X links</h3>
+          <p>Drop an x.com link on the Dock icon, or use <span class="k">Services › Open in X for macOS</span> from another app.</p>
         </div>
-        <div class="card">
-          <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5 6v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V6z"/><path d="m9.5 13 2.5 2.5 4.5-5"/></svg>
-          <h3>Collects nothing</h3>
+        <div class="card wide">
+          <h3><span data-g="shield"></span> Collects nothing</h3>
           <p>No account of its own, no telemetry, and no saved posts. Links to other sites open in your browser.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <section aria-labelledby="keys-title">
+  <section class="block" id="keys">
     <div class="wrap">
-      <div class="section-head">
-        <h2 id="keys-title">Keyboard shortcuts</h2>
-        <p>Every toolbar button has a keyboard shortcut, and so does each feed and Settings.</p>
-      </div>
+      <div class="section-head"><span class="label">02</span><h2>Keyboard shortcuts</h2></div>
+      <p class="sub">Every toolbar button has a keyboard shortcut, and so does each feed and Settings.</p>
       <div class="keys">
-        <div class="key"><span>Refresh now</span><span><kbd>⌘</kbd><kbd>R</kbd></span></div>
-        <div class="key"><span>Pause auto-refresh</span><span><kbd>⌘</kbd><kbd>P</kbd></span></div>
-        <div class="key"><span>Stop loading</span><span><kbd>⌘</kbd><kbd>.</kbd></span></div>
-        <div class="key"><span>For you</span><span><kbd>⌥</kbd><kbd>⌘</kbd><kbd>1</kbd></span></div>
-        <div class="key"><span>Following</span><span><kbd>⌥</kbd><kbd>⌘</kbd><kbd>2</kbd></span></div>
-        <div class="key"><span>Home</span><span><kbd>⌘</kbd><kbd>1</kbd></span></div>
-        <div class="key"><span>Back · Forward</span><span><kbd>⌘</kbd><kbd>[</kbd><kbd>]</kbd></span></div>
-        <div class="key"><span>Find on page</span><span><kbd>⌘</kbd><kbd>F</kbd></span></div>
-        <div class="key"><span>Copy link</span><span><kbd>⇧</kbd><kbd>⌘</kbd><kbd>C</kbd></span></div>
-        <div class="key"><span>Settings</span><span><kbd>⌘</kbd><kbd>,</kbd></span></div>
-        <div class="key"><span>Text size</span><span><kbd>⌘</kbd><kbd>+</kbd><kbd>−</kbd><kbd>0</kbd></span></div>
-        <div class="key"><span>Full screen</span><span><kbd>⌃</kbd><kbd>⌘</kbd><kbd>F</kbd></span></div>
+        <div class="key"><span>Refresh now</span><kbd><b>⌘</b><b>R</b></kbd></div>
+        <div class="key"><span>Pause auto-refresh</span><kbd><b>⌘</b><b>P</b></kbd></div>
+        <div class="key"><span>Stop loading</span><kbd><b>⌘</b><b>.</b></kbd></div>
+        <div class="key"><span>For you</span><kbd><b>⌥</b><b>⌘</b><b>1</b></kbd></div>
+        <div class="key"><span>Following</span><kbd><b>⌥</b><b>⌘</b><b>2</b></kbd></div>
+        <div class="key"><span>Home</span><kbd><b>⌘</b><b>1</b></kbd></div>
+        <div class="key"><span>Back · Forward</span><kbd><b>⌘</b><b>[</b><b>]</b></kbd></div>
+        <div class="key"><span>Find on page</span><kbd><b>⌘</b><b>F</b></kbd></div>
+        <div class="key"><span>Copy link</span><kbd><b>⇧</b><b>⌘</b><b>C</b></kbd></div>
+        <div class="key"><span>Settings</span><kbd><b>⌘</b><b>,</b></kbd></div>
+        <div class="key"><span>Text size</span><kbd><b>⌘</b><b>+</b><b>−</b><b>0</b></kbd></div>
+        <div class="key"><span>Full screen</span><kbd><b>⌃</b><b>⌘</b><b>F</b></kbd></div>
       </div>
     </div>
   </section>
 
-  <section aria-labelledby="details-title">
+  <section class="block" id="spec">
     <div class="wrap">
-      <div class="section-head">
-        <h2 id="details-title">Details</h2>
-      </div>
-      <div class="details">
-        <div class="detail"><span class="label">Requires</span><p id="requires">macOS 27 or later, on a Mac with Apple silicon.</p></div>
-        <div class="detail"><span class="label">Install</span><p>Unzip it, move X to Applications, and open it. Sign in to X in the window.</p></div>
-        <div class="detail"><span class="label">Updates</span><p>Checks this site once a day and asks before installing. X › Check for Updates… checks now.</p></div>
-        <div class="detail"><span class="label">Signed</span><p>Signed with Developer ID and notarized by Apple.</p></div>
-        <div class="detail"><span class="label">Privacy</span><p>No telemetry and no account of its own. The only request the app makes itself is the daily update check, and notifications say only how many are unread.</p></div>
-        <div class="detail"><span class="label">Source</span><p>The code is on GitHub at <a class="inline" href="https://github.com/banastas/X">github.com/banastas/X</a>, where you can also report a problem.</p></div>
-      </div>
+      <div class="section-head"><span class="label">03</span><h2>Spec sheet</h2></div>
+      <table class="spec">
+        <tr><td>Requires</td><td id="requires">macOS 27 or later, on a Mac with Apple silicon.</td></tr>
+        <tr><td>Install</td><td>Unzip it, move X to Applications, and open it. Sign in to X in the window.</td></tr>
+        <tr><td>Updates</td><td>Checks this site once a day and asks before installing. X › Check for Updates… checks now.</td></tr>
+        <tr><td>Signed</td><td>Signed with Developer ID and notarized by Apple.</td></tr>
+        <tr><td>Privacy</td><td>No telemetry and no account of its own. The only request the app makes itself is the daily update check, and notifications say only how many are unread.</td></tr>
+        <tr><td>Source</td><td>The code is on GitHub at <a href="https://github.com/banastas/X">github.com/banastas/X</a>, where you can also report a problem.</td></tr>
+      </table>
       <div class="disclaimer">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 9v5M10 6h.01"/></svg>
+        <span data-g="info"></span>
         <p>X for macOS is an independent app. It is not made, endorsed, or supported by X Corp. It shows the x.com website, you sign in to X yourself, and X's rules and data practices apply to what you do there.</p>
       </div>
     </div>
   </section>
 
-  <section class="closing" aria-labelledby="closing-title">
+  <section class="block" id="download">
     <div class="wrap">
-      <img class="app-icon" src="icon.png" alt="" width="84" height="84">
-      <h2 id="closing-title">Keep your feed in view.</h2>
-      <div class="cta">
-        <a class="btn is-soon" id="download-bottom" href="#" aria-disabled="true">
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10m-4-4 4 4 4-4M4 16h12"/></svg>
-          Download
-        </a>
+      <div class="section-head"><span class="label">04</span><h2>Keep your feed in view</h2></div>
+      <div class="get">
+        <div>
+          <div class="label dim">Current version</div>
+          <div class="get-v" id="get-version">—</div>
+          <div class="dim" id="get-date">No release yet</div>
+        </div>
+        <ul class="get-list">
+          <li><span data-g="check"></span><span id="get-requires">For macOS 27 and later, on Apple silicon</span></li>
+          <li><span data-g="check"></span> Unzip it and move X to Applications</li>
+          <li><span data-g="check"></span> Updates itself: X › Check for Updates…, or once a day</li>
+          <li><span data-g="check"></span> Free, and independent of X Corp</li>
+        </ul>
+        <p class="whatsnew" id="whatsnew" hidden></p>
+        <div class="get-cta">
+          <a class="btn btn-accent is-soon" id="download-bottom" href="#download" aria-disabled="true">Download X</a>
+          <span class="label dim">Signed with Developer ID and notarized by Apple</span>
+        </div>
       </div>
     </div>
   </section>
 </main>
 
 <footer>
-  <div class="wrap">
-    <span>X for macOS · © 2026 banast.as · From the maker of <a href="https://blit.banast.as/">Blit</a>, <a href="https://rune.banast.as/">Rune</a> and <a href="https://cue.banast.as/">Cue</a></span>
-    <nav><a href="https://github.com/banastas/X">GitHub</a><a href="appcast.xml">Update feed</a><a href="mailto:me@banast.as">Contact</a></nav>
+  <div class="wrap label">
+    <span>X FOR MACOS · © 2026 banast.as · From the maker of <a href="https://blit.banast.as/">Blit</a>, <a href="https://rune.banast.as/">Rune</a> and <a href="https://cue.banast.as/">Cue</a></span>
+    <span class="footer-links"><a href="https://github.com/banastas/X">GitHub</a><a href="appcast.xml">Update feed</a><a href="mailto:me@banast.as">Contact</a></span>
   </div>
 </footer>
 
 <script>
 (() => {
+  const NS = "http://www.w3.org/2000/svg";
   const $ = id => document.getElementById(id);
 
+  // ---------- pixel glyphs, 1-bit grids as on the family's pages ----------
+  const GLYPHS = {
+    back: ["...#", "..#.", ".#..", "#...", ".#..", "..#.", "...#"],
+    forward: ["#...", ".#..", "..#.", "...#", "..#.", ".#..", "#..."],
+    home: ["...#...", "..###..", ".#####.", "#######", ".#...#.", ".#.#.#.", ".#.#.#."],
+    refresh: [".####.#", "#....##", "#...###", "#......", "#.....#", "#.....#", ".#####."],
+    auto: ["..###..", ".#####.", "###.###", "###..##", "#######", ".#####.", "..###.."],
+    caret: ["#######", ".#####.", "..###..", "...#..."],
+    clock: ["..###..", ".#...#.", "#..#..#", "#..##.#", "#.....#", ".#...#.", "..###.."],
+    recent: ["#######", ".......", "#####..", ".......", "###....", ".......", "#......"],
+    place: ["#####", "#####", "#####", "#####", "#####", "##.##", "#...#"],
+    pull: ["...#...", "...#...", "...#...", "#..#..#", ".#.#.#.", "..###..", "...#..."],
+    window: ["#######", "#.#.#.#", "#######", "#.....#", "#.....#", "#.....#", "#######"],
+    draft: [".....##", "....###", "...###.", "..###..", ".###...", "#.#....", "##....."],
+    lists: ["#.#####", ".......", "#.#####", ".......", "#.#####"],
+    open: ["...####", ".....##", "....#.#", "#..#..#", "#.#....", "#......", "#####.."],
+    shield: ["#######", "#.....#", "#.....#", "#.....#", ".#...#.", "..#.#..", "...#..."],
+    check: ["......#", ".....#.", "#...#..", ".#.#...", "..#...."],
+    info: ["..#..", ".....", ".##..", "..#..", "..#..", "..#..", ".###."],
+  };
+  function rects(svg, rows) {
+    rows.forEach((row, y) => [...row].forEach((ch, x) => {
+      if (ch === ".") return;
+      const r = document.createElementNS(NS, "rect");
+      r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", 1); r.setAttribute("height", 1);
+      svg.appendChild(r);
+    }));
+  }
+  function glyph(name, cell) {
+    const rows = GLYPHS[name];
+    const w = Math.max(...rows.map(r => r.length)), h = rows.length;
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    svg.setAttribute("width", w * cell); svg.setAttribute("height", h * cell);
+    svg.setAttribute("class", "glyph"); svg.setAttribute("aria-hidden", "true");
+    rects(svg, rows);
+    return svg;
+  }
+  for (const el of document.querySelectorAll("[data-g]")) {
+    if (!GLYPHS[el.dataset.g]) continue;
+    const svg = glyph(el.dataset.g, Number(el.dataset.s) || 2);
+    if (el.classList.contains("tool")) el.appendChild(svg); else el.replaceWith(svg);
+  }
+
   // ---------- the drawn window: a countdown, a pull, a refresh ----------
-  const win = $("window"), status = $("status"), capsuleText = $("capsule-text");
-  const clock = date => date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  // The status strip counts down in ten cells, six seconds each; it refreshes at zero and then every 60 seconds.
+  const win = $("window"), status = $("status"), capsuleText = $("capsule-text"), cells = $("cells");
+  cells.innerHTML = "<i></i>".repeat(10);
+  const time = date => date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   let refreshed = new Date(Date.now() - 51000);
   let remaining = 9;   // the first refresh comes soon, so a visitor sees one; after that, the real minute
-  const show = () => { status.textContent = `Next refresh in ${remaining}s · Refreshed ${clock(refreshed)}`; };
-  show();
+  const paint = live => [...cells.children].forEach((c, i) =>
+    c.className = live ? "live" : i < Math.ceil(remaining / 6) ? "lit" : "");
+  const show = () => { status.textContent = `Next refresh in ${remaining}s · Refreshed ${time(refreshed)}`; paint(false); };
+  const tickClock = () => { $("clock").textContent = new Date().toLocaleTimeString("en-GB", { hour12: false }); };
+  show(); tickClock();
   setInterval(() => {
+    tickClock();
     if (document.hidden || win.classList.contains("pulling") || win.classList.contains("loading")) return;
     remaining -= 1;
     if (remaining > 0) { show(); return; }
     capsuleText.textContent = "Refreshing";
     win.classList.add("loading");
     status.textContent = "Loading X";
+    paint(true);
     setTimeout(() => {
       win.classList.remove("loading");
       refreshed = new Date();
@@ -415,6 +548,7 @@ footer nav { display: flex; gap: 18px; }
   });
 
   // ---------- the current release, from the update feed scripts/release.sh writes ----------
+  // Before the first release there's no feed: the Download buttons stay off and the page says "No release yet".
   fetch("appcast.xml", { cache: "no-cache" })
     .then(r => r.ok ? r.text() : Promise.reject())
     .then(text => {
@@ -427,6 +561,7 @@ footer nav { display: flex; gap: 18px; }
       const bytes = Number(item.querySelector("enclosure")?.getAttribute("length")) || 0;
       const notes = new DOMParser().parseFromString(item.querySelector("description")?.textContent ?? "", "text/html").body.textContent.trim();
       const when = isNaN(date) ? "" : date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      const macOS = minOS ? minOS.replace(/\.0$/, "") : "";
       for (const id of ["download", "download-top", "download-bottom"]) {
         const button = $(id);
         button.href = "downloads/X.zip";
@@ -435,12 +570,17 @@ footer nav { display: flex; gap: 18px; }
         button.removeAttribute("aria-disabled");
       }
       // The current download's own minimum, so this stays true across a change of requirement.
-      if (minOS) $("requires").textContent = "macOS " + minOS.replace(/\.0$/, "") + " or later, on a Mac with Apple silicon.";
+      if (macOS) {
+        $("requires").textContent = "macOS " + macOS + " or later, on a Mac with Apple silicon.";
+        $("get-requires").textContent = "For macOS " + macOS + " and later, on Apple silicon";
+      }
       $("download-note").textContent = ["Version " + version, when, bytes ? (bytes / 1e6).toFixed(1) + " MB" : "",
-        minOS ? "macOS " + minOS.replace(/\.0$/, "") + " or later" : ""].filter(Boolean).join(" · ");
+        macOS ? "macOS " + macOS + " or later" : ""].filter(Boolean).join(" · ");
+      $("get-version").textContent = version;
+      $("get-date").textContent = [when ? "Released " + when : "", bytes ? (bytes / 1e6).toFixed(1) + " MB" : ""].filter(Boolean).join(" · ");
       if (notes) {
         const whatsnew = $("whatsnew");
-        whatsnew.replaceChildren(Object.assign(document.createElement("strong"), { textContent: "What's new: " }), notes);
+        whatsnew.replaceChildren(Object.assign(document.createElement("b"), { textContent: "What's new: " }), notes);
         whatsnew.hidden = false;
       }
     })
