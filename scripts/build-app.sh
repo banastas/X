@@ -50,7 +50,7 @@ license=.build/artifacts/sparkle/Sparkle/LICENSE
     cat "$license"
 } > .build/Credits.txt
 textutil -convert rtf -output "$app_dir/Contents/Resources/Credits.rtf" .build/Credits.txt
-swift scripts/render-icon.swift Resources/x-gold-icon.png .build/AppIcon.iconset
+swift scripts/render-icon.swift Resources/x-glitch-icon.png .build/AppIcon.iconset
 iconutil -c icns .build/AppIcon.iconset -o "$app_dir/Contents/Resources/AppIcon.icns"
 plutil -lint "$plist"
 

@@ -5,10 +5,10 @@ The app's website, served at **x.banast.as**: one page about X for macOS with a 
 - **Out of search results, not hidden.** Every response says `noindex` (`_headers` and a meta tag), and `robots.txt` turns crawlers away. The page is linked from the public GitHub repository (its website field and the README's Install section, the user's choice, 2026-10-17), so anyone reading those can find it; the family's other sites still don't link here.
 - **Design:** the family's greys with the app icon's gold. `--gold-hi`, `--gold` and `--gold-deep` are sampled from the rendered icon, and the icon's near-black mark is the ink on gold buttons. The hero draws the app's window in HTML and CSS, as of 0.5.0: the toolbar's capsule groups with the Following feed menu in the middle, the For you and Following tabs, placeholder posts with no real content, a You were here line, and the status strip's countdown. Update the drawing when the toolbar or status strip changes. It refreshes at zero and then every 60 seconds, and clicking the feed shows a pull. With Reduce Motion on, nothing slides or spins. Chips beside the window show on wide screens only.
 - **The icon, not X's brand.** The app icon (the user's choice, 2026-10-17) is the only artwork. It contains X's mark, so the page says plainly, near the top and in the details, that the app is independent of X Corp. Don't add X's wordmark, its blue, or screenshots of real posts.
-- **Icon files:** made from `Resources/x-gold-icon.png` by the app's own renderer, so the page and the Dock match. After changing the artwork, run:
+- **Icon files:** made from `Resources/x-glitch-icon.png` by the app's own renderer, so the page and the Dock match. After changing the artwork, run:
 
   ```bash
-  swift scripts/render-icon.swift Resources/x-gold-icon.png /tmp/x.iconset
+  swift scripts/render-icon.swift Resources/x-glitch-icon.png /tmp/x.iconset
   cp /tmp/x.iconset/icon_256x256@2x.png site/icon.png
   cp /tmp/x.iconset/icon_32x32@2x.png site/icon-64.png
   ```
