@@ -1,0 +1,40 @@
+<!doctype html>
+<!--
+  GitHub social preview for the repository (1280×640, Resources/social-preview.jpg), in the site's look: the family's
+  greys, Silkscreen and VT323 from site/fonts, scanlines, cyan and magenta washes, the app icon from site/icon.png.
+  GitHub crops up to 80px from each edge, so everything sits inside .safe. Render with Blit's renderer (WebKit):
+    swiftc -O -o /tmp/render-page ../Blit/scripts/brand/render.swift
+    /tmp/render-page scripts/social-card.html 1280 640 /tmp/x-card.png && sips -s format jpeg -s formatOptions 90 /tmp/x-card.png --out Resources/social-preview.jpg
+  Upload by hand: the repository's Settings › General › Social preview.
+-->
+<html lang="en"><head><meta charset="utf-8">
+<style>
+@font-face { font-family: "Silkscreen"; src: url("../site/fonts/Silkscreen-Regular.ttf"); }
+@font-face { font-family: "VT323"; src: url("../site/fonts/VT323-Regular.ttf"); }
+html, body { margin: 0; width: 1280px; height: 640px; overflow: hidden; background: #060709; color: #f0f0f0; }
+body { position: relative; font-family: "VT323", monospace; -webkit-font-smoothing: none; }
+body::before { content: ""; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 90% at 100% 0%, rgba(0,237,255,.13), transparent 70%),
+              radial-gradient(ellipse 55% 90% at 0% 100%, rgba(255,43,204,.11), transparent 70%); }
+body::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, rgba(255,255,255,.03) 0 1px, transparent 1px 3px); }
+.safe { position: absolute; inset: 80px 120px; display: flex; align-items: center; gap: 64px; z-index: 1; }
+.tile { flex: none; width: 300px; height: 300px; border-radius: 68px; overflow: hidden; box-shadow: 0 0 0 1px #2b2b2b, 0 30px 80px rgba(0,0,0,.7); }
+.tile img { display: block; width: 124.3%; height: 124.3%; margin: -12.15%; }
+h1 { margin: 0; font: 400 72px/1 "Silkscreen", monospace; letter-spacing: .02em; text-shadow: -3px 0 rgba(0,237,255,.85), 3px 0 rgba(255,43,204,.8); }
+.tag { margin: 22px 0 0; font-size: 44px; line-height: 1.05; text-transform: uppercase; }
+.tag .cur { color: #00edff; }
+.chips { display: flex; gap: 12px; margin-top: 30px; font: 400 15px/1 "Silkscreen", monospace; text-transform: uppercase; letter-spacing: .06em; }
+.chips span { border: 1px solid #2b2b2b; padding: 9px 12px; color: #b0b0b0; }
+.note { margin-top: 22px; font-size: 26px; color: #7d7d7d; }
+</style></head>
+<body>
+<div class="safe">
+  <div class="tile"><img src="../site/icon.png" alt=""></div>
+  <div>
+    <h1>X FOR MACOS</h1>
+    <p class="tag">Your X feeds,<br>in their own window<span class="cur">_</span></p>
+    <div class="chips"><span>Native controls</span><span>Auto-refresh</span><span>Pull to refresh</span></div>
+    <p class="note">Unofficial · not made, endorsed, or supported by X Corp</p>
+  </div>
+</div>
+</body></html>

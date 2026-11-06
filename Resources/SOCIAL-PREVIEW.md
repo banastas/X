@@ -2,11 +2,13 @@
 
 Upload asset: `social-preview.jpg` (1280 × 640 pixels, JPEG under 1 MB). The generated artwork is exported at the template dimensions for GitHub.
 
-Created with the built-in image-generation tool. The GitHub social-card template supplied the 2:1 canvas and safe margins; `x-gold-icon.png` supplied the app's visual identity. The card contains no personal attribution or live account content.
+Since 2026-11-05 it's an HTML page, `scripts/social-card.html`, in the site's look (the family's greys, Silkscreen and VT323 from `site/fonts`, scanlines, cyan and magenta washes) with the glitch app icon from `site/icon.png`, rendered with WebKit; the page's header says how. Everything sits inside GitHub's 80px crop margins. The card contains no personal attribution or live account content.
+
+Until then the card was made with the built-in image-generation tool from `x-gold-icon.png`; its prompt is below for the record.
 
 Upload the finished image under the repository's **Settings → Social preview → Edit → Upload an image**. Adding this asset to Git alone does not change GitHub's social preview. See [GitHub's requirements](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/customizing-your-repositorys-social-media-preview).
 
-## Generation prompt
+## Generation prompt (the gold card, until 2026-11-05)
 
 ```text
 Use case: ads-marketing.
