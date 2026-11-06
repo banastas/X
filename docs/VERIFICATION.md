@@ -1,4 +1,4 @@
-# Verification: X 0.5.3
+# Verification: X 0.5.4
 
 ## Security review fixes (0.5.3)
 
